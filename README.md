@@ -18,6 +18,8 @@ In addition, there is a memory area for globals, containing the global variables
 
 As there can only be a single thread executing at any given time, handling concurrency is relatively simple, while still allowing multiple blocks to seemingly execute in parallel.
 
+The VM uses little endian byte order.
+
 ## OpCodes
 
 | OpCode      | Mnemonic | Description                                                         |
@@ -51,7 +53,7 @@ Push some data to the stack. The length of the data is specified by the length p
 
 ### Jump
 
-Unconditional jump by by a signed offset. The offset is specified by the offset parameter, either in the lower 4 bits of the opcode and for larger offsets in the following bytes. The offset is relative to the address of the jump instruction.
+Unconditional jump by by a signed offset. The offset is specified by the offset parameter, either in the lower 4 bits of the opcode and for larger offsets in the following bytes. The offset is relative to the address of the jump instruction if the offset is negative. If the offset is positive, it is relative to the address following the jump instruction.
 
 ### JZ
 
@@ -62,3 +64,31 @@ Conditional jump by by a signed offset, if the top of the stack is zero. See the
 Call of a function. A number is assigned to each available function. This number is the argument to the call instruction.
 
 The invoked instruction is responsible for all required stack manipulation. By convention, arguments are processed from left to right, thus the right most argument is on the top of the stack when the function is called. The arguments are popped from the stack and the result is pushed back onto the stack.
+
+## Output File Format
+
+The file consists of the following sections:
+
+1. Header
+1. Thread Table
+1. Threads
+
+### Header
+
+| Length | Description                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2      | Magic bytes 0x4D, 0x42, 'MB'                                                                                                                                                                                                                                                                |
+| 1      | Version, currently 0                                                                                                                                                                                                                                                                        |
+| 2      | Number of threads                                                                                                                                                                                                                                                                           |
+| 2      | Memory size. This is the amount of memory required to run the program. The globals start at offset zero. The stack of the threads follows. The offset of each stack is stored in the thread table. The spacing of the stack happens according to the maximum stack required by each thread. |
+
+### Thread Table Entry
+
+| Length | Description                            |
+| ------ | -------------------------------------- |
+| 4      | File Offset of the start of the thread |
+| 2      | Thread Stack Offset                    |
+
+### Thread
+
+Each thread just consists of the code for the thread

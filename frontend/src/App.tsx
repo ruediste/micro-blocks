@@ -5,108 +5,39 @@ import toolbox from './toolbox';
 import compile from './compile';
 
 
-Blockly.common.defineBlocksWithJsonArray([
-  {
-    "type": "play_sound",
-    "message0": "Play %1 foo",
-    "args0": [
-      {
-        "type": "field_dropdown",
-        "name": "VALUE",
-        "options": [
-          ["C4", "sounds/c4.m4a"],
-          ["D4", "sounds/d4.m4a"],
-          ["E4", "sounds/e4.m4a"],
-          ["F4", "sounds/f4.m4a"],
-          ["G4", "sounds/g4.m4a"]
-        ]
-      }
-    ],
-    "previousStatement": null,
-    "nextStatement": null,
-    "colour": 355
-  },
-  {
-    "type": "set_pin",
-    "message0": "Set Pin %1 to %2",
-    "args0": [
-      {
-        "type": "field_number",
-        "name": "pin",
-        "value": 0
-      },
-      {
-        "type": "input_value",
-        "name": "value"
-      }
-    ],
-    "colour": 230,
-    "previousStatement": null,
-    "nextStatement": null,
-    "tooltip": "If the value is false or zero, set the pin to low, high otherwise",
-    "helpUrl": ""
-  },
-  {
-    "type": "on_pin_change",
-    "message0": "On Pin %1 change %2 Edge %3 Pull %4 %5 %6",
-    "args0": [
-      {
-        "type": "field_number",
-        "name": "pin",
-        "value": 0
-      },
-      {
-        "type": "input_end_row"
-      },
-      {
-        "type": "field_dropdown",
-        "name": "edge",
-        "options": [
-          [
-            "raising",
-            "RAISIN"
-          ],
-          [
-            "falling",
-            "FALLING"
-          ],
-          [
-            "BOTH",
-            "BOTH"
-          ]
-        ]
-      },
-      {
-        "type": "field_dropdown",
-        "name": "pull",
-        "options": [
-          [
-            "up",
-            "UP"
-          ],
-          [
-            "down",
-            "DOWN"
-          ],
-          [
-            "none",
-            "NONE"
-          ]
-        ]
-      },
-      {
-        "type": "input_dummy"
-      },
-      {
-        "type": "input_statement",
-        "name": "BODY"
-      }
-    ],
-    "colour": 230,
-    "tooltip": "",
-    "helpUrl": ""
+Blockly.Blocks['set_pin'] = {
+  init: function () {
+    this.appendValueInput("VALUE")
+      .setCheck("Boolean")
+      .appendField("Set Pin")
+      .appendField(new Blockly.FieldNumber(0, 0), "PIN")
+      .appendField("to");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("If the value is false or zero, set the pin to low, high otherwise");
+    this.setHelpUrl("");
   }
-]);
+};
+
+Blockly.Blocks['on_pin_change'] = {
+  init: function () {
+    this.appendEndRowInput()
+      .appendField("On Pin")
+      .appendField(new Blockly.FieldNumber(0), "PIN")
+      .appendField("change");
+    this.appendDummyInput()
+      .appendField("Edge")
+      .appendField(new Blockly.FieldDropdown([["raising", "RAISIN"], ["falling", "FALLING"], ["BOTH", "BOTH"]]), "EDGE")
+      .appendField("Pull")
+      .appendField(new Blockly.FieldDropdown([["up", "UP"], ["down", "DOWN"], ["none", "NONE"]]), "PULL")
+    this.appendStatementInput("BODY")
+      .setCheck(null);
+    this.setColour(230);
+    this.setTooltip("");
+    this.setHelpUrl("");
+  }
+};
 
 var options: BlocklyOptions = {
   toolbox: toolbox,

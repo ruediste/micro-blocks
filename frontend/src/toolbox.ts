@@ -9,10 +9,6 @@ const toolbox: ToolboxInfo = {
             'colour': "#f00",
             'contents': [
                 {
-                    'type': 'play_sound',
-                    'kind': 'block',
-                },
-                {
                     'type': 'on_pin_change',
                     'kind': 'block',
                 },
