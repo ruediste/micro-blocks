@@ -75,19 +75,21 @@ The file consists of the following sections:
 
 ### Header
 
-| Length | Description                                                                                                                                                                                                                                                                                 |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2      | Magic bytes 0x4D, 0x42, 'MB'                                                                                                                                                                                                                                                                |
-| 1      | Version, currently 0                                                                                                                                                                                                                                                                        |
-| 2      | Number of threads                                                                                                                                                                                                                                                                           |
-| 2      | Memory size. This is the amount of memory required to run the program. The globals start at offset zero. The stack of the threads follows. The offset of each stack is stored in the thread table. The spacing of the stack happens according to the maximum stack required by each thread. |
+| Length | Description                  |
+| ------ | ---------------------------- |
+| 2      | Magic bytes 0x4D, 0x42, 'MB' |
+| 1      | Version, currently 0         |
+| 2      | Number of threads            |
+| 2      | Memory size                  |
+
+The memory size is the amount of memory required to run the program. The globals start at offset zero. The stack of the threads follows. The offset of each stack is stored in the thread table. The spacing of the stack happens according to the maximum stack required by each thread.
 
 ### Thread Table Entry
 
-| Length | Description                            |
-| ------ | -------------------------------------- |
-| 4      | File Offset of the start of the thread |
-| 2      | Thread Stack Offset                    |
+| Length | Description                                         |
+| ------ | --------------------------------------------------- |
+| 2      | File Offset of the start of the code for the thread |
+| 2      | Thread Stack Offset                                 |
 
 ### Thread
 

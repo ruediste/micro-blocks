@@ -2,42 +2,12 @@ import { useEffect, useRef } from 'react';
 import './App.scss';
 import Blockly, { BlocklyOptions } from 'blockly';
 import toolbox from './toolbox';
-import compile from './compile';
+import compile from './compiler/compile';
+import { defineBlocks } from './defineBlocks';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-
-Blockly.Blocks['set_pin'] = {
-  init: function () {
-    this.appendValueInput("VALUE")
-      .setCheck("Boolean")
-      .appendField("Set Pin")
-      .appendField(new Blockly.FieldNumber(0, 0), "PIN")
-      .appendField("to");
-    this.setPreviousStatement(true, null);
-    this.setNextStatement(true, null);
-    this.setColour(230);
-    this.setTooltip("If the value is false or zero, set the pin to low, high otherwise");
-    this.setHelpUrl("");
-  }
-};
-
-Blockly.Blocks['on_pin_change'] = {
-  init: function () {
-    this.appendEndRowInput()
-      .appendField("On Pin")
-      .appendField(new Blockly.FieldNumber(0), "PIN")
-      .appendField("change");
-    this.appendDummyInput()
-      .appendField("Edge")
-      .appendField(new Blockly.FieldDropdown([["raising", "RAISIN"], ["falling", "FALLING"], ["BOTH", "BOTH"]]), "EDGE")
-      .appendField("Pull")
-      .appendField(new Blockly.FieldDropdown([["up", "UP"], ["down", "DOWN"], ["none", "NONE"]]), "PULL")
-    this.appendStatementInput("BODY")
-      .setCheck(null);
-    this.setColour(230);
-    this.setTooltip("");
-    this.setHelpUrl("");
-  }
-};
+defineBlocks();
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -56,16 +26,22 @@ var options: BlocklyOptions = {
   oneBasedIndex: true
 };
 
-
+function save(filename: string, data: Blob) {
+  const blob = new Blob([data], { type: 'application/octet-stream' });
+  const elem = window.document.createElement('a');
+  elem.href = window.URL.createObjectURL(blob);
+  elem.download = filename;
+  document.body.appendChild(elem);
+  elem.click();
+  document.body.removeChild(elem);
+}
 
 function MyWorkspace() {
   const ref = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
 
-
   const resize = () => {
-    console.log('resize');
     let element: HTMLElement | null = areaRef.current!;
     let x = 0;
     let y = 0;
@@ -101,7 +77,13 @@ function MyWorkspace() {
   return <>
     <div style={{ display: 'flex', gap: '8px' }}>
       <button type="button" className="btn btn-secondary" onClick={() => localStorage.setItem("workspace", JSON.stringify(Blockly.serialization.workspaces.save(workspace.current!)))}>Save</button>
-      <button type="button" className="btn btn-secondary" onClick={() => compile(workspace.current!)}>Compile</button>
+      <button type="button" className="btn btn-secondary" onClick={() => {
+        const code = compile(workspace.current!);
+        if (code !== undefined)
+          save('block.mb', new Blob([code]));
+        else
+          toast("There was a compilation error");
+      }}>Compile</button>
     </div >
     <div style={{ flexGrow: 1 }} ref={areaRef}></div>
     <div style={{ position: 'absolute' }} ref={ref}></div>
@@ -110,6 +92,7 @@ function MyWorkspace() {
 function App() {
   return (<>
     <MyWorkspace />
+    <ToastContainer />
   </>
   );
 }
