@@ -12,7 +12,7 @@ The VM is based on an untyped stack. The VM is only concerned with managing the 
 
 All code is executed in the context of a thread. Each thread has it's own stack. Switching between the threads is done using cooperative multi tasking. Thus the threads invoke the `yield` instruction when they are ready to be suspended. The resumption of a thread lies outside of the responsibility of the VM. Typically, some external event will occur and some callback will determine that a thread needs to be resumed.
 
-When the VM is started, all threads will be executed, one after the other. Typically, the threads will perform some setup, register themselves with some events and then invoke the yield instruction.
+When the VM is started, all threads will be executed, one after the other. Typically, the threads will perform some setup, register themselves with some events and then invoke a function which causes the thread to yield.
 
 In addition, there is a memory area for globals, containing the global variables. This area can be accessed by all threads.
 
@@ -24,7 +24,6 @@ The VM uses little endian byte order.
 
 | OpCode      | Mnemonic | Description                                                         |
 | ----------- | -------- | ------------------------------------------------------------------- |
-| `0000 0000` | yield    | suspend execution of the current thread                             |
 | `00ss llll` | push     | push the supplied data with length `llll` to the stack              |
 | `01ss oooo` | jump     | jump by the specified offset `oooo`                                 |
 | `10ss oooo` | jz       | jump by the specified offset `oooo` if the top of the stack is zero |
@@ -42,10 +41,6 @@ Argument size `ss`
 The least significant byte is stored after the opcode. The most significant bits are always stored in the opcode. If the parameter is signed, the sign bit is always stored in bit 3 of the opcode.
 
 Thus a jump with an offset of -60000 (binary two's complement 32 bit `1111 1111 1111 1111 0001 0101 1010 0000`) would be encoded as `0110 1111 | 0101 1010 | 1111 0001`. To decode, the four lower bits of the opcode have to be sign-extended to a 16 bit word and then concatenated with the two bytes following the opcode to form the 32 bit jump offset.
-
-### Yield
-
-Suspend execution of the current thread.
 
 ### Push
 

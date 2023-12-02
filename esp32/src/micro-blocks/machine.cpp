@@ -70,32 +70,6 @@ namespace machine
         threadYielded = true;
     }
 
-    enum class OpCode
-    {
-        PUSH,
-        JUMP,
-        JZ,
-        CALL,
-        INVALID
-    };
-
-    OpCode opCode(uint16_t pc)
-    {
-        switch (code[pc] >> 6)
-        {
-        case 0b00:
-            return OpCode::PUSH;
-        case 0b01:
-            return OpCode::JUMP;
-        case 0b10:
-            return OpCode::JZ;
-        case 0b11:
-            return OpCode::CALL;
-        default:
-            return OpCode::INVALID;
-        }
-    }
-
     int32_t readArgument(uint16_t &pc, bool isSigned)
     {
         int32_t result = 0;
@@ -142,9 +116,9 @@ namespace machine
         while (!threadYielded)
         {
             auto initialPc = thread.pc;
-            switch (opCode(thread.pc))
+            switch (code[thread.pc] >> 6)
             {
-            case OpCode::PUSH:
+            case 0b00:
             {
                 int32_t bytes = readArgument(thread.pc, false);
                 for (auto i = 0; i < bytes; i++)
@@ -153,7 +127,7 @@ namespace machine
                 }
                 break;
             }
-            case OpCode::JUMP:
+            case 0b01:
             {
                 auto offset = readArgument(thread.pc, true);
                 if (offset > 0)
@@ -162,7 +136,7 @@ namespace machine
                     thread.pc = initialPc + offset;
                 break;
             }
-            case OpCode::JZ:
+            case 0b10:
             {
                 int32_t offset = readArgument(thread.pc, true);
                 if (memory[--thread.sp] == 0)
@@ -174,7 +148,7 @@ namespace machine
                 }
                 break;
             }
-            case OpCode::CALL:
+            case 0b11:
             {
                 int32_t functionNr = readArgument(thread.pc, true);
                 functions[functionNr]();

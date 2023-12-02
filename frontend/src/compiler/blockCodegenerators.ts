@@ -3,48 +3,38 @@ import functionTable from './functionTable';
 import { generateCodeForBlock, generateCodeForSequence } from './compile';
 import { ArrayBufferBuilder, ArrayBufferSegment } from './ArrayBufferBuilder';
 
-type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder) => { segment: ArrayBufferSegment, maxStack: number };
+type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder) => ArrayBufferSegment;
 
 const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {
     on_pin_change: (block, buffer) => {
         buffer.startSegment();
-        buffer.addPushUint8(block.getFieldValue('PIN'));
-        buffer.addCall(functionTable.setupOnPinChange);
+        buffer.addCall('setupOnPinChange', null, { type: 'uint8', value: block.getFieldValue('PIN') });
         const setup = buffer.endSegment();
 
         buffer.startSegment();
-        buffer.addCall(functionTable.waitForPinChange);
+        buffer.addCall('waitForPinChange', null);
         const wait = buffer.endSegment();
         const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer);
 
         buffer.startSegment();
-        buffer.addJump(-buffer.size([wait, body.segment]));
+        buffer.addJump(-buffer.size([wait, body]));
         const jump = buffer.endSegment();
 
-        return { segment: [setup, wait, body.segment, jump], maxStack: Math.max(1, body.maxStack) };
+        return [setup, wait, body, jump];
     },
 
     set_pin: (block, buffer) => {
         const segments: ArrayBufferSegment[] = [];
-
-        buffer.startSegment();
-        buffer.addPushUint8(block.getFieldValue('PIN'));
-        segments.push(buffer.endSegment());
-
         const value = generateCodeForBlock(block.getInputTargetBlock('VALUE')!, buffer);
-        segments.push(value.segment);
-
         buffer.startSegment();
-        buffer.addCall(functionTable.setPin);
-        segments.push(buffer.endSegment());
-
-        return { segment: segments, maxStack: value.maxStack + 1 };
+        buffer.addCall('setPin', null, { type: 'uint8', value: block.getFieldValue('PIN') }, { type: 'uint8', value: value });
+        return buffer.endSegment()
     },
 
     logic_boolean: (block, buffer) => {
         buffer.startSegment();
         buffer.addPushUint8(block.getFieldValue('BOOL') === 'TRUE' ? 1 : 0);
-        return { segment: buffer.endSegment(), maxStack: 1 };
+        return buffer.endSegment()
     },
 }
 

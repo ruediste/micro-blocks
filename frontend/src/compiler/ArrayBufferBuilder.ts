@@ -1,43 +1,66 @@
 import { append } from "blockly/core/serialization/blocks";
+import functionTable from "./functionTable";
 
 export type ArrayBufferSegment = {
     start: number // inclusive
     end: number // exclusive
 } | ArrayBufferSegment[];
 
+export interface FunctionInfos {
+    [key: number]: {
+        stackDelta: number
+    }
+}
 
 export class ArrayBufferBuilder {
     private buffer = new DataView(new ArrayBuffer(1 << 20)); // one megabyte should do for now, and should not hurt any device running a browser 
     private end = 0
     private appending = false;
-    private segmentStart = 0;
+    private partStart = 0;
+
+    private segments: ArrayBufferSegment[] = [];
+
+    functionInfos: FunctionInfos = {}
 
     startSegment() {
         if (this.appending)
             throw new Error("There is still an unclosed appender")
 
-        this.segmentStart = this.end;
+        this.partStart = this.end;
+        this.segments = [];
         this.appending = true;
     }
 
-    endSegment(): ArrayBufferSegment {
-        this.checkNotCompleted();
-        this.appending = false;
-        return { start: this.segmentStart, end: this.end };
+    private endPart() {
+        this.checkAppending();
+        if (this.end === this.partStart)
+            return;
+        this.segments.push({ start: this.partStart, end: this.end });
+        this.partStart = this.end;
     }
 
+    endSegment(): ArrayBufferSegment {
+        this.endPart();
+        this.appending = false;
+        return this.segments.length === 1 ? this.segments[0] : this.segments;
+    }
 
-    private checkNotCompleted() {
+    addSegment(segment: ArrayBufferSegment) {
+        this.endPart();
+        this.segments.push(segment);
+    }
+
+    private checkAppending() {
         if (!this.appending)
             throw new Error("Appender has already been completed")
     }
 
     public addUint8(value: number) {
-        this.checkNotCompleted();
+        this.checkAppending();
         this.buffer.setUint8(this.end++, value);
     };
     public addUint16(value: number) {
-        this.checkNotCompleted();
+        this.checkAppending();
         this.buffer.setUint16(this.end, value, true);
         this.end += 2;
     };
@@ -95,9 +118,41 @@ export class ArrayBufferBuilder {
     }
     addJump(offset: number) { this.addOpcodeWithParameter(0b01, offset, true) }
     addJz(offset: number) { this.addOpcodeWithParameter(0b10, offset, true) }
-    addCall(functionNumber: number) { this.addOpcodeWithParameter(0b11, functionNumber, false) }
+    addRawCall(functionNr: number) { this.addOpcodeWithParameter(0b11, functionNr, false) }
 
 
+    addCall(functionName: keyof typeof functionTable, retType: 'uint8' | 'uint16' | null, ...params: ({ type: 'uint8' | 'uint16', value: number | ArrayBufferSegment })[]) {
+        let stackDelta = 0;
+        params.forEach(x => {
+            switch (x.type) {
+                case 'uint8': stackDelta--;
+                    if (typeof x.value === 'number')
+                        this.addPushUint8(x.value);
+                    else
+                        this.addSegment(x.value)
+                    break;
+                case 'uint16': stackDelta -= 2;
+                    if (typeof x.value === 'number')
+                        this.addPushUint16(x.value);
+                    else
+                        this.addSegment(x.value)
+                    break;
+            }
+        });
+        const functionNumber = functionTable[functionName];
+        this.addRawCall(functionNumber);
+        switch (retType) {
+            case 'uint8': stackDelta++; break;
+            case 'uint16': stackDelta += 2; break;
+        }
+        const existingInfo = this.functionInfos[functionNumber];
+        if (existingInfo !== undefined) {
+            if (existingInfo.stackDelta !== stackDelta) {
+                throw new Error("Function nr " + functionName + " was previously used with a stack delta of " + existingInfo.stackDelta + " but now with a stack delta of " + stackDelta)
+            }
+        } else
+            this.functionInfos[functionNumber] = { stackDelta: stackDelta };
+    }
 
     public size(segment: ArrayBufferSegment): number {
         if (Array.isArray(segment))
