@@ -9,17 +9,19 @@ const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {
     on_pin_change: (block, buffer) => {
         buffer.startSegment();
         buffer.addPushUint8(block.getFieldValue('PIN'));
-        buffer.addCall(functionTable.waitForPinChange);
-        buffer.addYield();
+        buffer.addCall(functionTable.setupOnPinChange);
         const setup = buffer.endSegment();
 
+        buffer.startSegment();
+        buffer.addCall(functionTable.waitForPinChange);
+        const wait = buffer.endSegment();
         const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer);
 
         buffer.startSegment();
-        buffer.addJump(-(buffer.size(setup) + buffer.size(body.segment)));
+        buffer.addJump(-buffer.size([wait, body.segment]));
         const jump = buffer.endSegment();
 
-        return { segment: [setup, body.segment, jump], maxStack: Math.max(1, body.maxStack) };
+        return { segment: [setup, wait, body.segment, jump], maxStack: Math.max(1, body.maxStack) };
     },
 
     set_pin: (block, buffer) => {

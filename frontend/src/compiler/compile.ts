@@ -44,19 +44,19 @@ function disassemble(code: DataView) {
 
     let pos = 0;
 
-    function extractParameter(opcode: number, signed: boolean): number {
-        let parameter;
+    function extractArgument(opcode: number, signed: boolean): number {
+        let argument;
         if (signed)
-            parameter = (opcode & 0xf) | ((opcode & 0b1000) ? ~0xf : 0)
+            argument = (opcode & 0xf) | ((opcode & 0b1000) ? ~0xf : 0)
         else
-            parameter = opcode & 0xf;
+            argument = opcode & 0xf;
 
         switch (opcode >> 4 & 0b11) {
-            case 0b00: return parameter;
-            case 0b01: return parameter << 8 | code.getInt8(pos++);
+            case 0b00: return argument;
+            case 0b01: return argument << 8 | code.getInt8(pos++);
             case 0b10:
                 pos += 2;
-                return parameter << 16 | code.getInt16(pos - 2, true);
+                return argument << 16 | code.getInt16(pos - 2, true);
             default: throw new Error("Invalid opcode " + opcode);
         }
     }
@@ -64,24 +64,19 @@ function disassemble(code: DataView) {
     while (pos < code.byteLength) {
         const prefix = pos + ": ";
         const opcode = code.getUint8(pos++);
-
-        if (opcode === 0) {
-            result.push(prefix + "yield");
-            continue;
-        }
         const instruction = opcode >> 6 & 0b11;
         switch (instruction) {
             case 0b00: {
-                const count = extractParameter(opcode, false);
+                const count = extractArgument(opcode, false);
                 let str = prefix + "push ";
                 for (let i = 0; i < count; i++) {
                     str += " " + code.getUint8(pos++);
                 }
                 result.push(str);
             } break;
-            case 0b01: result.push(prefix + "jump " + extractParameter(opcode, true)); break;
-            case 0b10: result.push(prefix + "jz " + extractParameter(opcode, true)); break;
-            case 0b11: result.push(prefix + "call " + extractParameter(opcode, false)); break;
+            case 0b01: result.push(prefix + "jump " + extractArgument(opcode, true)); break;
+            case 0b10: result.push(prefix + "jz " + extractArgument(opcode, true)); break;
+            case 0b11: result.push(prefix + "call " + extractArgument(opcode, false)); break;
         }
     }
     return result.join("\n");

@@ -1,0 +1,17 @@
+{
+  "folders": [
+    {
+      "path": "frontend"
+    },
+    {
+      "path": "esp32"
+    }
+  ],
+  "settings": {
+    "files.associations": {
+      ".npmrc": "plaintext",
+      "*.json": "jsonc",
+      "functional": "cpp"
+    }
+  }
+}

@@ -80,7 +80,6 @@ export class ArrayBufferBuilder {
         }
     }
 
-    addYield() { this.addUint8(0x00); }
     addPushUint8(value: number) {
         this.addOpcodeWithParameter(0b00, 1, false);
         this.addUint8(value);
