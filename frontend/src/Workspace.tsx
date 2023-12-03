@@ -2,12 +2,9 @@ import { useEffect, useRef } from 'react';
 import Blockly, { BlocklyOptions } from 'blockly';
 import toolbox from './toolbox';
 import compile from './compiler/compile';
-import { defineBlocks } from './defineBlocks';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { post } from './system/useData';
-
-defineBlocks();
 
 var options: BlocklyOptions = {
   toolbox: toolbox,

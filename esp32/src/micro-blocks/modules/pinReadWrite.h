@@ -1,5 +1,5 @@
 #pragma once
-namespace baseModule
+namespace pinReadWriteModule
 {
     void setup();
     void loop();

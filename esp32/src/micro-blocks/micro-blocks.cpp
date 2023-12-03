@@ -2,7 +2,7 @@
 #include "AsyncJson.h"
 #include "main.h"
 #include "machine.h"
-#include "baseModule.h"
+#include "modules/modules.h"
 
 namespace microBlocks
 {
@@ -63,7 +63,7 @@ namespace microBlocks
                 }
             });
 
-        baseModule::setup();
+        modules::setup();
         machine::setup();
     }
 
@@ -71,19 +71,25 @@ namespace microBlocks
     {
         if (codeChanged)
         {
-            Serial.println("Applying new code from flash...");
+            codeChanged = false;
             auto file = main::dataFS.open("/code.mkb", "r");
+            if (!file)
+            {
+                Serial.println("Failed to open code file");
+                return;
+            }
+
+            Serial.println("Applying new code from flash...");
             size_t size = file.size();
             uint8_t *buf = (uint8_t *)malloc(size);
             file.read(buf, size);
             file.close();
 
-            baseModule::reset();
+            modules::reset();
 
             machine::applyCode(buf, size);
-            codeChanged = false;
         }
-        baseModule::loop();
+        modules::loop();
         machine::loop();
     }
 }

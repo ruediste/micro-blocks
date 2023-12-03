@@ -1,8 +1,8 @@
 import Blockly, { BlocklyOptions } from 'blockly';
-import blockCodeGenerators from './blockCodegenerators';
 import { ArrayBufferBuilder, ArrayBufferSegment, FunctionInfos } from './ArrayBufferBuilder';
-import { Exception } from 'sass';
-import { off } from 'process';
+
+type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder) => ArrayBufferSegment;
+export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
 
 interface ThreadInfo {
     nr: number;

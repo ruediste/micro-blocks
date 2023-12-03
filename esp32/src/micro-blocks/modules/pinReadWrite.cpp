@@ -1,11 +1,11 @@
-#include "baseModule.h"
+#include "pinReadWrite.h"
 #include <deque>
 #include <vector>
 #include <stdint.h>
-#include "machine.h"
+#include "../machine.h"
 #include <Arduino.h>
 
-namespace baseModule
+namespace pinReadWriteModule
 {
     std::deque<uint16_t> yieldedThreads;
 
