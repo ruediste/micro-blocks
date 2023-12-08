@@ -1,19 +1,20 @@
-#include "pinReadWrite.h"
+#include "pin.h"
 #include <deque>
 #include <vector>
 #include <stdint.h>
 #include "../machine.h"
 #include <Arduino.h>
 
-namespace pinReadWriteModule
+namespace pinModule
 {
-    std::deque<uint16_t> yieldedThreads;
 
     typedef struct
     {
-        unsigned long debounceEndTime = 0;
+        unsigned long lastChange = 0;
+        unsigned long debounce = 0;
         uint16_t threadNr;
         uint8_t pin;
+        uint8_t edge;
         bool lastState;
         bool triggered = false;
         bool ready = false;
@@ -23,31 +24,37 @@ namespace pinReadWriteModule
 
     void reset()
     {
-        yieldedThreads.clear();
         onPinChangeEntries.clear();
     }
 
     void setup()
     {
-        // yield function
-        machine::registerFunction(
-            0,
-            []()
-            {
-                Serial.println(String("Thread yielding ") + machine::currentThreadNr);
-                yieldedThreads.push_back(machine::currentThreadNr);
-                machine::yieldCurrentThread();
-            });
-
         // setup on pin change
         machine::registerFunction(
             1,
             []()
             {
+                auto debounce = machine::popFloat();
+                auto edge = machine::popUint8();
+                auto pull = machine::popUint8();
                 OnPinChangeEntry entry;
                 entry.pin = machine::popUint8();
+                entry.edge = edge;
                 entry.threadNr = machine::currentThreadNr;
-                pinMode(entry.pin, INPUT + PULLUP);
+                entry.debounce = debounce;
+                switch (pull)
+                {
+                case 0:
+                    pull = 0;
+                    break;
+                case 1:
+                    pull = PULLUP;
+                    break;
+                case 2:
+                    pull = PULLDOWN;
+                    break;
+                }
+                pinMode(entry.pin, INPUT + pull);
 
                 entry.lastState = digitalRead(entry.pin);
                 onPinChangeEntries.push_back(entry);
@@ -87,31 +94,31 @@ namespace pinReadWriteModule
 
     void loop()
     {
-        if (!yieldedThreads.empty())
-        {
-            uint16_t threadNr = yieldedThreads.front();
-            yieldedThreads.pop_front();
-            Serial.println(String("Running yielded thread ") + threadNr);
-            machine::runThread(threadNr);
-        }
-
         auto now = millis();
         for (auto &entry : onPinChangeEntries)
         {
             // only look at the state if the last state change is at least the debounce time ago
-            if (entry.debounceEndTime < now)
+            if (now - entry.lastChange > entry.debounce)
             {
                 auto newState = digitalRead(entry.pin);
-                // Serial.println(String("Pin ") + entry.pin + " state " + newState);
-                if (entry.lastState && !newState)
+
+                switch (entry.edge)
                 {
-                    entry.triggered = true;
+                case 0:
+                    entry.triggered = entry.lastState != newState;
+                    break;
+                case 1:
+                    entry.triggered = !entry.lastState && newState;
+                    break;
+                case 2:
+                    entry.triggered = entry.lastState && !newState;
+                    break;
                 }
 
                 if (entry.lastState != newState)
                 {
                     entry.lastState = newState;
-                    entry.debounceEndTime = now + 200;
+                    entry.lastChange = now;
                 }
             }
 

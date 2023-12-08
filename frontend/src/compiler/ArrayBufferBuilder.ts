@@ -1,5 +1,6 @@
 import { append } from "blockly/core/serialization/blocks";
-import functionTable from "./functionTable";
+import functionTable, { functionByNumber } from "./functionTable";
+import { BlockCode, BlockType } from "./compile";
 
 export type ArrayBufferSegment = {
     start: number // inclusive
@@ -11,6 +12,8 @@ export interface FunctionInfos {
         stackDelta: number
     }
 }
+
+export type FunctionCallParameterValue = number | ArrayBufferSegment;
 
 export class ArrayBufferBuilder {
     private buffer = new DataView(new ArrayBuffer(1 << 20)); // one megabyte should do for now, and should not hurt any device running a browser 
@@ -59,10 +62,16 @@ export class ArrayBufferBuilder {
         this.checkAppending();
         this.buffer.setUint8(this.end++, value);
     };
+
     public addUint16(value: number) {
         this.checkAppending();
         this.buffer.setUint16(this.end, value, true);
         this.end += 2;
+    };
+    public addFloat(value: number) {
+        this.checkAppending();
+        this.buffer.setFloat32(this.end, value, true);
+        this.end += 4;
     };
 
     private addOpcodeWithParameter(opcode: number, parameter: number, signed: boolean) {
@@ -111,6 +120,11 @@ export class ArrayBufferBuilder {
         this.addOpcodeWithParameter(0b00, 2, false);
         this.addUint16(value);
     }
+    addPushFloat(value: number) {
+        this.addOpcodeWithParameter(0b00, 4, false);
+        this.addFloat(value);
+    }
+
     addPush(view: DataView) {
         this.addOpcodeWithParameter(0b00, view.byteLength, false);
         for (let i = 0; i < view.byteLength; i++)
@@ -121,34 +135,48 @@ export class ArrayBufferBuilder {
     addRawCall(functionNr: number) { this.addOpcodeWithParameter(0b11, functionNr, false) }
 
 
-    addCall(functionName: keyof typeof functionTable, retType: 'uint8' | 'uint16' | null, ...params: ({ type: 'uint8' | 'uint16', value: number | ArrayBufferSegment })[]) {
+    addCall(functionNumber: number, retType: BlockType | null, ...params: (
+        { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
+        | { type: 'Number', value: number } | BlockCode<'Number'>
+        | { type: 'uint16', value: number }
+        | { type: 'uint8', value: number }
+    )[]) {
         let stackDelta = 0;
         params.forEach(x => {
             switch (x.type) {
-                case 'uint8': stackDelta--;
-                    if (typeof x.value === 'number')
-                        this.addPushUint8(x.value);
-                    else
-                        this.addSegment(x.value)
+                case 'uint8':
+                    stackDelta--;
+                    this.addPushUint8(x.value);
                     break;
-                case 'uint16': stackDelta -= 2;
-                    if (typeof x.value === 'number')
-                        this.addPushUint16(x.value);
+                case 'Boolean':
+                    stackDelta--;
+                    if ('code' in x)
+                        this.addSegment(x.code)
                     else
-                        this.addSegment(x.value)
+                        this.addPushUint8(x.value ? 1 : 0);
+                    break;
+                case 'Number':
+                    stackDelta -= 4;
+                    if ('code' in x)
+                        this.addSegment(x.code)
+                    else
+                        this.addPushFloat(x.value);
+                    break;
+                case 'uint16':
+                    stackDelta -= 2;
+                    this.addPushUint16(x.value);
                     break;
             }
         });
-        const functionNumber = functionTable[functionName];
         this.addRawCall(functionNumber);
         switch (retType) {
-            case 'uint8': stackDelta++; break;
-            case 'uint16': stackDelta += 2; break;
+            case 'Boolean': stackDelta++; break;
+            case 'Number': stackDelta += 4; break;
         }
         const existingInfo = this.functionInfos[functionNumber];
         if (existingInfo !== undefined) {
             if (existingInfo.stackDelta !== stackDelta) {
-                throw new Error("Function nr " + functionName + " was previously used with a stack delta of " + existingInfo.stackDelta + " but now with a stack delta of " + stackDelta)
+                throw new Error("Function " + functionByNumber[functionNumber] + "(" + functionNumber + ") was previously used with a stack delta of " + existingInfo.stackDelta + " but now with a stack delta of " + stackDelta)
             }
         } else
             this.functionInfos[functionNumber] = { stackDelta: stackDelta };

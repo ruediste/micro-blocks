@@ -1,22 +1,34 @@
 #include "modules.h"
 #include <vector>
-#include "pinReadWrite.h"
+#include "pin.h"
 #include <Arduino.h>
+#include "logic.h"
+#include "math.h"
+#include "variables.h"
+#include "basic.h"
+#include "controls.h"
 
 namespace modules
 {
     void setup()
     {
-        pinReadWriteModule::setup();
+        basicModule::setup();
+        pinModule::setup();
+        logicModule::setup();
+        mathModule::setup();
+        variablesModule::setup();
+        controlsModule::setup();
     }
 
     void loop()
     {
-        pinReadWriteModule::loop();
+        basicModule::loop();
+        pinModule::loop();
     }
 
     void reset()
     {
-        pinReadWriteModule::reset();
+        basicModule::reset();
+        pinModule::reset();
     }
 }

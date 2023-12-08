@@ -8,6 +8,7 @@ import {
 import Workspace from "./Workspace";
 import { WifiPage } from "./system/WifiConfig";
 import { SystemStatus } from "./system/SystemStatus";
+import { ToastContainer } from "react-toastify";
 
 interface NavEntry {
   title: string;
@@ -77,7 +78,10 @@ function Navigation() {
   );
 }
 function App() {
-  return <RouterProvider router={router} />;
+  return <>
+    <RouterProvider router={router} />;
+    <ToastContainer />
+  </>
 }
 
 export default App;

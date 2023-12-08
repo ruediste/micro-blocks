@@ -1,5 +1,6 @@
-import { Toolbox } from "blockly";
-import { ToolboxInfo } from "blockly/core/utils/toolbox";
+import Blockly, { FlyoutButton, Toolbox, WorkspaceSvg } from "blockly";
+import { bumpTopObjectsIntoBounds } from "blockly/core/bump_objects";
+import { FlyoutDefinition, ToolboxInfo } from "blockly/core/utils/toolbox";
 
 const toolbox: ToolboxInfo = {
     'kind': 'categoryToolbox',
@@ -7,26 +8,14 @@ const toolbox: ToolboxInfo = {
     ],
 };
 
+export const buttonCallbacks: { [key: string]: (p1: FlyoutButton) => void } = {};
+export const toolboxCategoryCallbacks: { [key: string]: (p1: WorkspaceSvg) => FlyoutDefinition } = {};
+
 export function addCategory(category: ToolboxInfo['contents'][number]) {
     toolbox.contents.push(category);
 }
 
 const defaultCategories: ToolboxInfo['contents'] = [
-    {
-        'kind': 'category',
-        'name': 'Basic',
-        'colour': "#f00",
-        'contents': [
-            {
-                'type': 'pin_on_change',
-                'kind': 'block',
-            },
-            {
-                'type': 'pin_set',
-                'kind': 'block',
-            },
-        ]
-    },
     {
         'kind': 'category',
         'name': 'Logic',
@@ -89,14 +78,6 @@ const defaultCategories: ToolboxInfo['contents'] = [
                             },
                         },
                     },
-                },
-            },
-            {
-                'type': 'controls_repeat',
-                'kind': 'block',
-                'enabled': false,
-                'fields': {
-                    'TIMES': 10,
                 },
             },
             {
@@ -881,7 +862,7 @@ const defaultCategories: ToolboxInfo['contents'] = [
     {
         'kind': 'category',
         'name': 'Variables',
-        'custom': 'VARIABLE',
+        'custom': 'VARIABLE_DYNAMIC',
         'categorystyle': 'variable_category',
     },
     {
@@ -892,6 +873,8 @@ const defaultCategories: ToolboxInfo['contents'] = [
     },
 ];
 
-defaultCategories.forEach(c => toolbox.contents.push(c));
+export function addDefaultCategories() {
+    defaultCategories.forEach(c => toolbox.contents.push(c));
+}
 
 export default toolbox;

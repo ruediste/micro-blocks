@@ -50,6 +50,23 @@ namespace machine
         return *(uint16_t *)(memory + currentThread().sp);
     }
 
+    uint32_t popUint32()
+    {
+        currentThread().sp -= 4;
+        return *(uint32_t *)(memory + currentThread().sp);
+    }
+
+    uint8_t *variable(uint16_t offset)
+    {
+        return memory + offset;
+    }
+
+    float popFloat()
+    {
+        currentThread().sp -= 4;
+        return *(float *)(memory + currentThread().sp);
+    }
+
     void pushUint8(uint8_t value)
     {
         memory[currentThread().sp++] = value;
@@ -58,6 +75,18 @@ namespace machine
     void pushUint16(uint16_t value)
     {
         *((uint16_t *)(memory + currentThread().sp)) = value;
+        currentThread().sp += 2;
+    }
+    void pushUint32(uint32_t value)
+    {
+        *((uint32_t *)(memory + currentThread().sp)) = value;
+        currentThread().sp += 4;
+    }
+
+    void pushFloat(float value)
+    {
+        *((float *)(memory + currentThread().sp)) = value;
+        currentThread().sp += 4;
     }
 
     void registerFunction(uint16_t functionNr, MachineFunction function)
@@ -130,7 +159,7 @@ namespace machine
             case 0b01:
             {
                 auto offset = readArgument(thread.pc, true);
-                if (offset > 0)
+                if (offset >= 0)
                     thread.pc += offset;
                 else
                     thread.pc = initialPc + offset;
@@ -141,7 +170,7 @@ namespace machine
                 int32_t offset = readArgument(thread.pc, true);
                 if (memory[--thread.sp] == 0)
                 {
-                    if (offset > 0)
+                    if (offset >= 0)
                         thread.pc += offset;
                     else
                         thread.pc = initialPc + offset;
@@ -150,7 +179,8 @@ namespace machine
             }
             case 0b11:
             {
-                int32_t functionNr = readArgument(thread.pc, true);
+                int32_t functionNr = readArgument(thread.pc, false);
+                Serial.println(String("Calling function ") + functionNr + " SP: " + (thread.sp - threadTableEntry(threadNr).stackOffset));
                 functions[functionNr]();
                 break;
             }
@@ -179,6 +209,8 @@ namespace machine
         }
         code = buf;
         memory = (uint8_t *)malloc(header().memorySize);
+        bzero(memory, header().memorySize);
+
         threads = (ThreadInfo *)malloc(header().threadCount * sizeof(ThreadInfo));
         for (auto i = 0; i < header().threadCount; i++)
         {

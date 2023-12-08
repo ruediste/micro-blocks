@@ -1,7 +1,18 @@
 import Blockly, { BlocklyOptions } from 'blockly';
 import { ArrayBufferBuilder, ArrayBufferSegment, FunctionInfos } from './ArrayBufferBuilder';
+import { functionByNumber } from './functionTable';
 
-type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder) => ArrayBufferSegment;
+export type VariableInfos = {
+    [key: string]: {
+        type: "Number"
+        offset: number
+    }
+}
+
+export interface BlockCodeGeneratorContext {
+    variables: VariableInfos
+}
+type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
 export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
 
 interface ThreadInfo {
@@ -13,20 +24,53 @@ interface ThreadInfo {
     stackOffset?: number;
 }
 
-export function generateCodeForBlock(block: Blockly.Block, buffer: ArrayBufferBuilder) {
+export type BlockType =
+    'Boolean' // a boolean represented as uint8
+    | 'Number' // a number represented as float
+    | null // the block does not push a value on the stack
+    ;
+
+export interface BlockCode<T extends BlockType> {
+    code: ArrayBufferSegment;
+    type: T
+}
+
+export function generateCodeForBlock<T extends BlockType>(type: T | undefined, block: Blockly.Block | null, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext): { code: ArrayBufferSegment, type: T } {
+    if (block == null) {
+        if (type === undefined) {
+            throw new Error("No type expected and block is null, cannot create a default value");
+        }
+        buffer.startSegment();
+        switch (type) {
+            case null: break;
+            case 'Boolean': buffer.addPushUint8(0); break;
+            case 'Number': buffer.addPushFloat(0); break;
+        }
+        return { code: buffer.endSegment(), type }
+    }
+
     const generator = blockCodeGenerators[block.type];
     if (generator === undefined) {
         throw new Error("No block code generator defined for " + block.type)
     }
 
-    return generator(block, buffer);
+    const result = generator(block, buffer, ctx);
+    if (type !== undefined && result.type != type) {
+        throw new Error("Expected block " + block.type + " to generate type " + type + " but got " + result.type);
+    }
+
+    return result as any;
 }
 
-export function generateCodeForSequence(firstBlock: Blockly.Block, buffer: ArrayBufferBuilder): ArrayBufferSegment {
+export function generateCodeForSequence(firstBlock: Blockly.Block | null, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext): ArrayBufferSegment {
     const segments: ArrayBufferSegment[] = [];
     let block: Blockly.Block | null = firstBlock;
     while (block != null) {
-        segments.push(generateCodeForBlock(block, buffer));
+        const code = generateCodeForBlock(null, block, buffer, ctx);
+        if (code.type !== null) {
+            throw new Error("Expected block not to push anything to the stack but got " + code.type);
+        }
+        segments.push(code.code);
         block = block.getNextBlock();
     }
     return segments;
@@ -55,7 +99,7 @@ class MaxStackSizeCalculator {
             switch (instruction.opcode) {
                 case "push": stackSize += instruction.count; pos = instruction.nextPc; break;
                 case "jump": this.process(instruction.jumpTarget, stackSize); return;
-                case "jz": pos = instruction.nextPc; this.process(instruction.jumpTarget, stackSize); break;
+                case "jz": pos = instruction.nextPc; stackSize--; this.process(instruction.jumpTarget, stackSize); break;
                 case "call": pos = instruction.nextPc; stackSize += this.functionInfos[instruction.functionNumber].stackDelta; break;
             }
             if (stackSize > this.maxStackSize) {
@@ -65,8 +109,8 @@ class MaxStackSizeCalculator {
     }
 }
 
-function generateCodeForThread(thread: ThreadInfo, buffer: ArrayBufferBuilder) {
-    thread.code = generateCodeForBlock(thread.block, buffer);
+function generateCodeForThread(thread: ThreadInfo, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext) {
+    thread.code = generateCodeForBlock(null, thread.block, buffer, ctx).code;
 
     const code = new DataView(buffer.toBuffer(thread.code));
     console.log("Thread " + thread.nr)
@@ -92,7 +136,7 @@ function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
             case 0b00: return argument;
             case 0b01: return argument << 8 | code.getInt8(pc++);
             case 0b10: return argument << 16 | code.getInt8(pc++) | code.getInt8(pc++) << 8;
-            default: throw new Error("Invalid opcode " + opcode);
+            default: throw new Error("Invalid opcode " + opcode + " at pos " + pc);
         }
     }
     const startPc = pc;
@@ -105,11 +149,11 @@ function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
         }
         case 0b01: {
             const offset = extractArgument(opcode, true);
-            return { nextPc: pc, opcode: 'jump', offset, jumpTarget: offset > 0 ? pc + offset : startPc + offset }
+            return { nextPc: pc, opcode: 'jump', offset, jumpTarget: offset >= 0 ? pc + offset : startPc + offset }
         }
         case 0b10: {
             const offset = extractArgument(opcode, true);
-            return { nextPc: pc, opcode: 'jz', offset, jumpTarget: offset > 0 ? pc + offset : startPc + offset }
+            return { nextPc: pc, opcode: 'jz', offset, jumpTarget: offset >= 0 ? pc + offset : startPc + offset }
         }
         case 0b11: {
             const functionNumber = extractArgument(opcode, false);
@@ -122,9 +166,9 @@ function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
 
 function disassemble(code: DataView) {
     const result: string[] = [];
-
+    // output as hex
+    console.log(Array.from(new Uint8Array(code.buffer, 0, code.byteLength)).map(x => x.toString(16).padStart(2, '0')).join(" "));
     let pos = 0;
-
     while (pos < code.byteLength) {
         const prefix = pos + ": ";
         const instruction = decodeInstruction(code, pos)
@@ -138,7 +182,7 @@ function disassemble(code: DataView) {
             } break;
             case "jump": result.push(prefix + "jump " + instruction.jumpTarget); break;
             case "jz": result.push(prefix + "jz " + instruction.jumpTarget); break;
-            case "call": result.push(prefix + "call " + instruction.functionNumber); break;
+            case "call": result.push(prefix + "call " + instruction.functionNumber + " (" + functionByNumber[instruction.functionNumber] + ")"); break;
         }
         pos = instruction.nextPc;
     }
@@ -149,12 +193,18 @@ function disassemble(code: DataView) {
 export default function compile(workspace: Blockly.Workspace): ArrayBuffer | undefined {
     try {
         const buffer = new ArrayBufferBuilder();
-        const threads: ThreadInfo[] = workspace.getTopBlocks().map((block, nr) => ({ block, nr }));
-        threads.forEach(thread => generateCodeForThread(thread, buffer));
+
+        let globalVariablesSize = 0;
+        const variableInfos: VariableInfos = {};
+        workspace.getAllVariables().forEach((variable) => {
+            variableInfos[variable.name] = { type: variable.type as any, offset: globalVariablesSize };
+            globalVariablesSize += 4;
+        });
+        const threads: ThreadInfo[] = workspace.getTopBlocks().filter(block => block.isEnabled()).map((block, nr) => ({ block, nr }));
+        threads.forEach(thread => generateCodeForThread(thread, buffer, { variables: variableInfos }));
         const headerSize = 7;
         const threadTableSize = threads.length * 4;
         const codeStart = headerSize + threadTableSize;
-        const globalVariablesSize = 0;
         let codeOffset = codeStart;
         let stackOffset = globalVariablesSize;
         threads.forEach((thread, threadNr) => {
