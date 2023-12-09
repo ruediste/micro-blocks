@@ -137,7 +137,7 @@ namespace machine
 
     void runThread(uint16_t threadNr)
     {
-        Serial.println(String("Running Thread ") + threadNr);
+        // Serial.println(String("Running Thread ") + threadNr);
         currentThreadNr = threadNr;
         threadYielded = false;
         ThreadInfo &thread = threads[threadNr];
@@ -180,7 +180,7 @@ namespace machine
             case 0b11:
             {
                 int32_t functionNr = readArgument(thread.pc, false);
-                Serial.println(String("Calling function ") + functionNr + " SP: " + (thread.sp - threadTableEntry(threadNr).stackOffset));
+                // Serial.println(String("Calling function ") + functionNr + " SP: " + (thread.sp - threadTableEntry(threadNr).stackOffset));
                 functions[functionNr]();
                 break;
             }
@@ -189,7 +189,7 @@ namespace machine
             }
         }
 
-        Serial.println(String("Thread ") + threadNr + " yielded");
+        // Serial.println(String("Thread ") + threadNr + " yielded");
     }
 
     void applyCode(uint8_t *buf, size_t size)

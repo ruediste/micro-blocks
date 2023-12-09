@@ -1,5 +1,47 @@
 import { BlockType, blockCodeGenerators, generateCodeForBlock } from "../compiler/compile";
-import functionTable from "../compiler/functionTable";
+import functionTable, { functionCallers } from "../compiler/functionTable";
+import { addCategory } from "../toolbox";
+
+addCategory({
+    'kind': 'category',
+    'name': 'Logic',
+    'categorystyle': 'logic_category',
+    'contents': [
+        {
+            'type': 'controls_if',
+            'kind': 'block',
+        },
+        {
+            'type': 'logic_compare',
+            'kind': 'block',
+            'fields': {
+                'OP': 'EQ',
+            },
+        },
+        {
+            'type': 'logic_operation',
+            'kind': 'block',
+            'fields': {
+                'OP': 'AND',
+            },
+        },
+        {
+            'type': 'logic_negate',
+            'kind': 'block',
+        },
+        {
+            'type': 'logic_boolean',
+            'kind': 'block',
+            'fields': {
+                'BOOL': 'TRUE',
+            },
+        },
+        {
+            'type': 'logic_ternary',
+            'kind': 'block',
+        },
+    ],
+});
 
 blockCodeGenerators.logic_boolean = (block, buffer) => {
     buffer.startSegment();
@@ -13,7 +55,7 @@ blockCodeGenerators.logic_compare = (block, buffer, ctx) => {
     const a = generateCodeForBlock('Number', block.getInputTargetBlock('A'), buffer, ctx);
     const b = generateCodeForBlock('Number', block.getInputTargetBlock('B'), buffer, ctx);
     buffer.startSegment();
-    buffer.addCall(functionTable.logicCompare, 'Boolean', a, b, { type: 'uint8', value: { EQ: 0, NEQ: 1, LT: 2, LTE: 3, GT: 4, GTE: 5 }[op] });
+    functionCallers.logicCompare(buffer, a, b, op);
     return { type: "Boolean", code: buffer.endSegment() };
 }
 
@@ -29,7 +71,7 @@ blockCodeGenerators.logic_operation = (block, buffer, ctx) => {
 blockCodeGenerators.logic_negate = (block, buffer, ctx) => {
     const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('BOOL'), buffer, ctx);
     buffer.startSegment();
-    buffer.addCall(functionTable.logicNegate, 'Boolean', a);
+    functionCallers.logicNegate(buffer, a);
     return { type: "Boolean", code: buffer.endSegment() };
 }
 
@@ -47,12 +89,7 @@ blockCodeGenerators.logic_ternary = (block, buffer, ctx) => {
 
     if (codeThen == null && codeElse == null) {
         // try to generate code for the output
-        const outputCheck = block.outputConnection!.targetConnection?.getCheck()
-        if (outputCheck != null && outputCheck.length > 0) {
-            const type = outputCheck[0];
-            return generateCodeForBlock(outputCheck[0] as BlockType, null, buffer, ctx);
-        }
-        throw new Error('Cannot determine type of ternary');
+        return generateCodeForBlock(ctx.expectedType, null, buffer, ctx);
     }
 
     const type = codeThen?.type ?? codeElse!.type;

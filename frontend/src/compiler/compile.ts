@@ -1,16 +1,21 @@
-import Blockly, { BlocklyOptions } from 'blockly';
+import Blockly, { BlocklyOptions, FieldVariable } from 'blockly';
 import { ArrayBufferBuilder, ArrayBufferSegment, FunctionInfos } from './ArrayBufferBuilder';
 import { functionByNumber } from './functionTable';
 
+export interface VariableInfo {
+    type: "Number"
+    offset: number
+}
+
 export type VariableInfos = {
-    [key: string]: {
-        type: "Number"
-        offset: number
-    }
+    [key: string]: VariableInfo
 }
 
 export interface BlockCodeGeneratorContext {
     variables: VariableInfos
+    expectedType: BlockType
+
+    getVariable: (block: Blockly.Block, name: string) => VariableInfo
 }
 type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
 export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
@@ -36,6 +41,9 @@ export interface BlockCode<T extends BlockType> {
 }
 
 export function generateCodeForBlock<T extends BlockType>(type: T | undefined, block: Blockly.Block | null, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext): { code: ArrayBufferSegment, type: T } {
+    if (buffer.isAppending) {
+        throw new Error("Cannot generate code while generating a segment")
+    }
     if (block == null) {
         if (type === undefined) {
             throw new Error("No type expected and block is null, cannot create a default value");
@@ -54,7 +62,7 @@ export function generateCodeForBlock<T extends BlockType>(type: T | undefined, b
         throw new Error("No block code generator defined for " + block.type)
     }
 
-    const result = generator(block, buffer, ctx);
+    const result = generator(block, buffer, type === undefined ? ctx : { ...ctx, expectedType: type });
     if (type !== undefined && result.type != type) {
         throw new Error("Expected block " + block.type + " to generate type " + type + " but got " + result.type);
     }
@@ -197,11 +205,12 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         let globalVariablesSize = 0;
         const variableInfos: VariableInfos = {};
         workspace.getAllVariables().forEach((variable) => {
+            console.log(variable)
             variableInfos[variable.name] = { type: variable.type as any, offset: globalVariablesSize };
             globalVariablesSize += 4;
         });
         const threads: ThreadInfo[] = workspace.getTopBlocks().filter(block => block.isEnabled()).map((block, nr) => ({ block, nr }));
-        threads.forEach(thread => generateCodeForThread(thread, buffer, { variables: variableInfos }));
+        threads.forEach(thread => generateCodeForThread(thread, buffer, { variables: variableInfos, expectedType: null, getVariable: (block, name) => variableInfos[(block.getField('VAR') as FieldVariable).getVariable()!.name] }));
         const headerSize = 7;
         const threadTableSize = threads.length * 4;
         const codeStart = headerSize + threadTableSize;

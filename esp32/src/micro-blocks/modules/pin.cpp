@@ -90,6 +90,24 @@ namespace pinModule
                 pinMode(pin, OUTPUT);
                 digitalWrite(pin, value);
             });
+
+        analogWriteResolution(10);
+        analogWriteFrequency(1000);
+
+        // set pin analog
+        machine::registerFunction(
+            19,
+            []()
+            {
+                float value = machine::popFloat();
+                uint8_t pin = machine::popUint8();
+                pinMode(pin, OUTPUT);
+                if (value < 0)
+                    value = 0;
+                if (value > 1)
+                    value = 1;
+                analogWrite(pin, value * 1023);
+            });
     }
 
     void loop()

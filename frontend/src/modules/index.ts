@@ -1,9 +1,9 @@
 import './basic'
 import './pin';
 import './logic'
-import './variables'
-import './math'
 import './controls'
+import './math'
+import './variables'
 import { addDefaultCategories } from '../toolbox';
 
 addDefaultCategories();

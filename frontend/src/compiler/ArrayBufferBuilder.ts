@@ -1,6 +1,6 @@
 import { append } from "blockly/core/serialization/blocks";
-import functionTable, { functionByNumber } from "./functionTable";
-import { BlockCode, BlockType } from "./compile";
+import functionTable, { functionByNumber, functionCallers } from "./functionTable";
+import { BlockCode, BlockType, VariableInfo } from "./compile";
 
 export type ArrayBufferSegment = {
     start: number // inclusive
@@ -13,7 +13,10 @@ export interface FunctionInfos {
     }
 }
 
-export type FunctionCallParameterValue = number | ArrayBufferSegment;
+export type CallArgument = { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
+    | { type: 'Number', value: number } | BlockCode<'Number'> | (VariableInfo & { type: 'Number' })
+    | { type: 'uint16', value: number }
+    | { type: 'uint8', value: number };
 
 export class ArrayBufferBuilder {
     private buffer = new DataView(new ArrayBuffer(1 << 20)); // one megabyte should do for now, and should not hurt any device running a browser 
@@ -24,6 +27,8 @@ export class ArrayBufferBuilder {
     private segments: ArrayBufferSegment[] = [];
 
     functionInfos: FunctionInfos = {}
+
+    get isAppending() { return this.appending }
 
     startSegment() {
         if (this.appending)
@@ -135,14 +140,10 @@ export class ArrayBufferBuilder {
     addRawCall(functionNr: number) { this.addOpcodeWithParameter(0b11, functionNr, false) }
 
 
-    addCall(functionNumber: number, retType: BlockType | null, ...params: (
-        { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
-        | { type: 'Number', value: number } | BlockCode<'Number'>
-        | { type: 'uint16', value: number }
-        | { type: 'uint8', value: number }
-    )[]) {
+
+    addCall(functionNumber: number, retType: BlockType | null, ...args: CallArgument[]) {
         let stackDelta = 0;
-        params.forEach(x => {
+        args.forEach(x => {
             switch (x.type) {
                 case 'uint8':
                     stackDelta--;
@@ -159,6 +160,8 @@ export class ArrayBufferBuilder {
                     stackDelta -= 4;
                     if ('code' in x)
                         this.addSegment(x.code)
+                    else if ('offset' in x)
+                        functionCallers.variablesGetVar32(this, x);
                     else
                         this.addPushFloat(x.value);
                     break;
@@ -166,6 +169,8 @@ export class ArrayBufferBuilder {
                     stackDelta -= 2;
                     this.addPushUint16(x.value);
                     break;
+                default:
+                    throw new Error("Unknown type " + x);
             }
         });
         this.addRawCall(functionNumber);

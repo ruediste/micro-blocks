@@ -1,7 +1,7 @@
 import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
 import Blockly, { FieldVariable, Msg, WorkspaceSvg } from 'blockly';
 import { addCategory, toolboxCategoryCallbacks } from "../toolbox";
-import functionTable from "../compiler/functionTable";
+import functionTable, { functionCallers } from "../compiler/functionTable";
 
 addCategory(
     {
@@ -29,20 +29,20 @@ function flyoutCategoryCustom(workspace: WorkspaceSvg): Element[] {
 toolboxCategoryCallbacks['VARIABLE_DYNAMIC_CUSTOM'] = flyoutCategoryCustom;
 
 blockCodeGenerators.variables_set_dynamic = (block, buffer, ctx) => {
-    const variable = ctx.variables[(block.getField('VAR') as FieldVariable).getVariable()!.name];
+    const variable = ctx.getVariable(block, 'VAR')
     const value = generateCodeForBlock(variable.type, block.getInputTargetBlock('VALUE')!, buffer, ctx);
     buffer.startSegment();
-    buffer.addCall(functionTable.variablesSetVar32, null, { type: 'uint16', value: variable.offset }, value);
+    functionCallers.variablesSetVar32(buffer, variable, value);
     return { type: null, code: buffer.endSegment() }
 };
 
 
 blockCodeGenerators.variables_get_dynamic = (block, buffer, ctx) => {
-    const variable = ctx.variables[(block.getField('VAR') as FieldVariable).getVariable()!.name]
+    const variable = ctx.getVariable(block, 'VAR')
     buffer.startSegment();
     switch (variable.type) {
         case "Number":
-            buffer.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset });
+            functionCallers.variablesGetVar32(buffer, variable);
             break;
         default: throw new Error("Unknown variable type " + variable.type)
     }

@@ -37,7 +37,23 @@ addCategory({
                     }
                 },
             }
-        },]
+        },
+        {
+            'type': 'pin_set_analog',
+            'kind': 'block',
+            'inputs': {
+                'VALUE': {
+                    'shadow': {
+                        'type': 'math_number',
+                        'fields': {
+                            'NUM': 0.5,
+                        },
+                    }
+                },
+            }
+        },
+
+    ]
 });
 
 
@@ -111,6 +127,28 @@ blockCodeGenerators.pin_set = (block, buffer, ctx) => {
     const value = generateCodeForBlock('Boolean', block.getInputTargetBlock('VALUE'), buffer, ctx);
     buffer.startSegment();
     buffer.addCall(functionTable.pinSet, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value);
+    return { type: null, code: buffer.endSegment() }
+};
+
+Blockly.Blocks['pin_set_analog'] = {
+    init: function () {
+        this.appendValueInput("VALUE")
+            .setCheck("Number")
+            .appendField("Set Analog Pin")
+            .appendField(new Blockly.FieldNumber(0, 0), "PIN")
+            .appendField("to");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour(230);
+        this.setTooltip("Output a PWM signal with a duty cycle proportional to the value (0-1)");
+        this.setHelpUrl("");
+    }
+};
+
+blockCodeGenerators.pin_set_analog = (block, buffer, ctx) => {
+    const value = generateCodeForBlock('Number', block.getInputTargetBlock('VALUE'), buffer, ctx);
+    buffer.startSegment();
+    buffer.addCall(functionTable.pinSetAnalog, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value);
     return { type: null, code: buffer.endSegment() }
 };
 
