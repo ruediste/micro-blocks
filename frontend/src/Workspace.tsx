@@ -5,6 +5,7 @@ import compile from './compiler/compile';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { post } from './system/useData';
+import Sensor from './Sensor';
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -99,6 +100,7 @@ export default function Workspace() {
         else
           toast("There was a compilation error", { type: 'error' });
       }}>Run</button>
+      <Sensor />
     </div >
     <div style={{ flexGrow: 1 }} ref={areaRef}></div>
     <div style={{ position: 'absolute' }} ref={ref}></div>

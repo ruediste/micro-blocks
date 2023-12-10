@@ -8,8 +8,7 @@ namespace websocket
 {
     enum class MessageType : uint8_t
     {
-        OVEN_STATUS,
-        OVEN_UPDATE
+        GRAVITY_SENSOR_VALUE,
     };
 
     struct MessageEntry
@@ -45,6 +44,11 @@ namespace websocket
                                         {
                                             handler(*((T *)data));
                                         }});
+    }
+
+    inline void handle(MessageType type, std::function<void(uint8_t *data, size_t size)> handler)
+    {
+        incomingMessageHandlers.insert({type, handler});
     }
 
     void setup();

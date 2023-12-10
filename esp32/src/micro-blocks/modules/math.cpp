@@ -172,7 +172,7 @@ namespace mathModule
                     Serial.println("Invalid operation for mathTrig");
                 }
 
-                Serial.println(String("mathTrig: ") + operation + " " + number + " = " + result);
+                // Serial.println(String("mathTrig: ") + operation + " " + number + " = " + result);
                 machine::pushFloat(result);
             });
 

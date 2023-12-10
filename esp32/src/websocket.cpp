@@ -16,7 +16,7 @@ namespace websocket
         auto entry = lastMessages.find(type);
         if (entry != lastMessages.end())
         {
-            if (entry->second.size != wrappedSize)
+            if (entry->second.size < wrappedSize)
             {
                 free(entry->second.data);
                 entry->second.size = wrappedSize;
@@ -41,6 +41,7 @@ namespace websocket
 
     void os_printf(const char *format, ...)
     {
+        return;
         char buffer[256];
         va_list args;
         va_start(args, format);

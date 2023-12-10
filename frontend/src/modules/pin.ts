@@ -86,7 +86,6 @@ Blockly.Blocks['pin_on_change'] = {
 blockCodeGenerators.pin_on_change = (block, buffer, ctx) => {
     const debounce = generateCodeForBlock("Number", block.getInputTargetBlock('DEBOUNCE')!, buffer, ctx);
 
-    console.log(block.getFieldValue('PIN'))
     buffer.startSegment();
     buffer.addCall(functionTable.pinSetupOnChange, null,
         { type: 'uint8', value: block.getFieldValue('PIN') },

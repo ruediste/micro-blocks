@@ -7,6 +7,7 @@
 #include "variables.h"
 #include "basic.h"
 #include "controls.h"
+#include "sensor.h"
 
 namespace modules
 {
@@ -18,12 +19,14 @@ namespace modules
         mathModule::setup();
         variablesModule::setup();
         controlsModule::setup();
+        sensorModule::setup();
     }
 
     void loop()
     {
         basicModule::loop();
         pinModule::loop();
+        sensorModule::loop();
     }
 
     void reset()
