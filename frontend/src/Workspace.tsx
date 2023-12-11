@@ -6,6 +6,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { post } from './system/useData';
 import Sensor from './Sensor';
+import { DesktopDownloadIcon, DownloadIcon, PlayIcon, UploadIcon } from '@primer/octicons-react';
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -34,6 +35,28 @@ function save(filename: string, data: Blob) {
   document.body.removeChild(elem);
 }
 
+function WorkspaceUploadButton(props: { uploaded: (serializedWorkspace: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return <div>
+    <input type="file" accept=".mb" className="form-control" style={{ display: 'none' }} ref={inputRef} onChange={(e) => {
+      const files: FileList | null = (e.target as any).files;
+      if (files == null || files.length == 0) return;
+      const file = files.item(0)!;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target!.result;
+        if (data == null) return;
+        props.uploaded(data as string);
+      };
+      reader.readAsText(file);
+      // clear the selected files
+      e.target.value = "";
+    }}
+    />
+    <button type="button" className="btn btn-secondary" onClick={() => inputRef.current?.click()}>Upload <UploadIcon /> </button>
+  </div>
+}
+
 export default function Workspace() {
   const ref = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -60,6 +83,7 @@ export default function Workspace() {
   const saveWorkspaceToLocalStorage = () => {
     localStorage.setItem("workspace", JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!)))
   }
+
   useEffect(() => {
     ref.current!.innerHTML = '';
 
@@ -84,8 +108,8 @@ export default function Workspace() {
 
   return <>
     <div style={{ display: 'flex', gap: '8px' }}>
-      <button type="button" className="btn btn-secondary" onClick={saveWorkspaceToLocalStorage}>Save</button>
-      <button type="button" className="btn btn-secondary" onClick={() => {
+      <button type="button" className="btn btn-secondary" onClick={saveWorkspaceToLocalStorage}>Save <DesktopDownloadIcon /></button>
+      <button type="button" className="btn btn-primary" onClick={() => {
         saveWorkspaceToLocalStorage();
         const code = compile(workspaceRef.current!);
         if (code !== undefined) {
@@ -99,8 +123,19 @@ export default function Workspace() {
         }
         else
           toast("There was a compilation error", { type: 'error' });
-      }}>Run</button>
+      }}>Run <PlayIcon /> </button>
       <Sensor />
+      <button type="button" className="btn btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => {
+        save("workspace.mb", new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!))]));
+      }}>Download <DownloadIcon /></button>
+      <WorkspaceUploadButton uploaded={(serializedWorkspace) => {
+        try {
+          Blockly.serialization.workspaces.load(JSON.parse(serializedWorkspace), workspaceRef.current!);
+          toast("Workspace loaded successfully", { type: 'success' });
+        } catch (e) {
+          toast("Error while loading workspace", { type: 'error' });
+        }
+      }} />
     </div >
     <div style={{ flexGrow: 1 }} ref={areaRef}></div>
     <div style={{ position: 'absolute' }} ref={ref}></div>
