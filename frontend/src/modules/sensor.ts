@@ -53,7 +53,7 @@ Blockly.Blocks['sensor_get_gravity_value'] = {
     init: function () {
         this.appendDummyInput()
             .appendField("Get Gravity Axis")
-            .appendField(new Blockly.FieldDropdown([["x", "X"], ["y", "Z"], ["z", "Z"]]), "AXIS")
+            .appendField(new Blockly.FieldDropdown([["x", "X"], ["y", "Y"], ["z", "Z"]]), "AXIS")
         this.setColour(230);
         this.setTooltip("");
         this.setHelpUrl("");

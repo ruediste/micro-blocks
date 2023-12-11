@@ -1,6 +1,8 @@
 #include "machine.h"
 #include <stdlib.h>
 #include <Arduino.h>
+#include "modules/basic.h"
+
 namespace machine
 {
 
@@ -94,7 +96,7 @@ namespace machine
         functions[functionNr] = function;
     }
 
-    void yieldCurrentThread()
+    void suspendCurrentThread()
     {
         threadYielded = true;
     }
@@ -137,6 +139,8 @@ namespace machine
 
     void runThread(uint16_t threadNr)
     {
+        unsigned long startTime = millis();
+
         // Serial.println(String("Running Thread ") + threadNr);
         currentThreadNr = threadNr;
         threadYielded = false;
@@ -186,6 +190,11 @@ namespace machine
             }
             default:
                 return;
+            }
+
+            if (millis() - startTime > 50)
+            {
+                basicModule::yieldCurrentThread();
             }
         }
 

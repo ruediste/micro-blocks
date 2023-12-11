@@ -1,7 +1,7 @@
 import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
 import Blockly from 'blockly';
 import { addCategory } from "../toolbox";
-import functionTable from "../compiler/functionTable";
+import functionTable, { functionCallers } from "../compiler/functionTable";
 
 addCategory({
     'kind': 'category',
@@ -66,7 +66,16 @@ Blockly.Blocks['basic_forever'] = {
 
 
 blockCodeGenerators.basic_forever = (block, buffer, ctx) => {
-    const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
+    const bodyBlock = block.getInputTargetBlock('BODY');
+
+    // if the body is empty, just end the thread
+    if (bodyBlock == null) {
+        buffer.startSegment();
+        buffer.addCall(functionTable.basicEndThread, null);
+        return { type: null, code: buffer.endSegment() };
+    }
+
+    const body = generateCodeForSequence(bodyBlock, buffer, ctx);
     buffer.startSegment();
     buffer.addSegment(body);
     buffer.addJump(-buffer.size(body));

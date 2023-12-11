@@ -24,9 +24,11 @@ namespace modules
 
     void loop()
     {
-        basicModule::loop();
         pinModule::loop();
         sensorModule::loop();
+
+        // the basic module should come last, to run yielded thread with lowest priority
+        basicModule::loop();
     }
 
     void reset()

@@ -75,7 +75,7 @@ namespace pinModule
                         break;
                     }
                 }
-                machine::yieldCurrentThread();
+                machine::suspendCurrentThread();
             });
 
         // set pin

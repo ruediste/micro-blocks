@@ -78,7 +78,7 @@ namespace sensorModule
             []()
             {
                 onGravitySensorChangeEntries[machine::currentThreadNr].waiting = true;
-                machine::yieldCurrentThread();
+                machine::suspendCurrentThread();
             });
     }
 

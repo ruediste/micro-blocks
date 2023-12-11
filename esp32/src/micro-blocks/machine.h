@@ -13,7 +13,7 @@ namespace machine
     void applyCode(uint8_t *buf, size_t size);
 
     extern uint16_t currentThreadNr;
-    void yieldCurrentThread();
+    void suspendCurrentThread();
     void runThread(uint16_t threadNr);
 
     uint8_t popUint8();

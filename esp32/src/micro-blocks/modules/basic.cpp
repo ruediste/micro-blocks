@@ -18,23 +18,23 @@ namespace basicModule
 
     std::vector<DelayEntry> delayEntries;
 
+    void yieldCurrentThread()
+    {
+        yieldedThreads.push_back(machine::currentThreadNr);
+        machine::suspendCurrentThread();
+    }
+
     void setup()
     {
         // yield function
-        machine::registerFunction(
-            0,
-            []()
-            {
-                yieldedThreads.push_back(machine::currentThreadNr);
-                machine::yieldCurrentThread();
-            });
+        machine::registerFunction(0, yieldCurrentThread);
 
         // end thread
         machine::registerFunction(
             11,
             []()
             {
-                machine::yieldCurrentThread();
+                machine::suspendCurrentThread();
             });
 
         // basicDelay
@@ -49,7 +49,7 @@ namespace basicModule
 
                 delayEntries.push_back(entry);
 
-                machine::yieldCurrentThread();
+                machine::suspendCurrentThread();
             });
 
         // pop32
@@ -69,13 +69,6 @@ namespace basicModule
 
     void loop()
     {
-        if (!yieldedThreads.empty())
-        {
-            uint16_t threadNr = yieldedThreads.front();
-            yieldedThreads.pop_front();
-            machine::runThread(threadNr);
-        }
-
         for (auto entry = delayEntries.begin(); entry != delayEntries.end();)
         {
             if (millis() - entry->startTime >= entry->delay)
@@ -88,6 +81,13 @@ namespace basicModule
             {
                 entry++;
             }
+        }
+
+        if (!yieldedThreads.empty())
+        {
+            uint16_t threadNr = yieldedThreads.front();
+            yieldedThreads.pop_front();
+            machine::runThread(threadNr);
         }
     }
 }
