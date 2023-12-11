@@ -22,6 +22,8 @@ const functionTable = {
     mathConstrain: 18,
     pinSetAnalog: 19,
     sensorGetGravityValue: 20,
+    sensorSetupOnGravityValues: 21,
+    sensorWaitForGravityValues: 22,
 }
 
 const mathUnaryOperationTable = {

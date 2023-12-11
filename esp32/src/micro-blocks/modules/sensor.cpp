@@ -2,6 +2,8 @@
 #include "websocket.h"
 #include "../machine.h"
 #include <Arduino.h>
+#include <deque>
+#include <unordered_map>
 
 namespace sensorModule
 {
@@ -14,12 +16,27 @@ namespace sensorModule
 
     GravitySensorValue lastGravitySensorValue{.x = 0, .y = 0, .z = 0};
 
+    typedef struct
+    {
+        bool triggered = false;
+        bool waiting = false;
+    } OnGravitySensorChangeEntry;
+
+    std::unordered_map<uint16_t, OnGravitySensorChangeEntry> onGravitySensorChangeEntries;
+
     void setup()
     {
-        websocket::handle<GravitySensorValue>(websocket::MessageType::GRAVITY_SENSOR_VALUE, [](GravitySensorValue &message)
-                                              { 
-                                                //  Serial.println(String("receive value ")+message.x+" "+message.y+" "+message.z);
-                                                lastGravitySensorValue = message; });
+        websocket::handle<GravitySensorValue>(
+            websocket::MessageType::GRAVITY_SENSOR_VALUE,
+            [](GravitySensorValue &message)
+            {
+                lastGravitySensorValue = message;
+
+                for (auto &entry : onGravitySensorChangeEntries)
+                {
+                    entry.second.triggered = true;
+                }
+            });
 
         // sensorGetGravityValue
         machine::registerFunction(
@@ -45,9 +62,37 @@ namespace sensorModule
                 // Serial.println(String("get gravity axis ") + axis + " is " + result);
                 machine::pushFloat(result);
             });
+
+        // setup on gravity sensor change
+        machine::registerFunction(
+            21,
+            []()
+            {
+                OnGravitySensorChangeEntry entry;
+                onGravitySensorChangeEntries[machine::currentThreadNr] = entry;
+            });
+
+        // wait for gravity sensor change
+        machine::registerFunction(
+            21,
+            []()
+            {
+                onGravitySensorChangeEntries[machine::currentThreadNr].waiting = true;
+                machine::yieldCurrentThread();
+            });
     }
 
     void loop()
     {
+        for (auto &entry : onGravitySensorChangeEntries)
+        {
+            if (entry.second.triggered && entry.second.waiting)
+            {
+                entry.second.triggered = false;
+                entry.second.waiting = false;
+                machine::runThread(entry.first);
+                break;
+            }
+        }
     }
 }
