@@ -74,7 +74,7 @@ namespace sensorModule
 
         // wait for gravity sensor change
         machine::registerFunction(
-            21,
+            22,
             []()
             {
                 onGravitySensorChangeEntries[machine::currentThreadNr].waiting = true;

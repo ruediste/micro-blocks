@@ -24,7 +24,7 @@ const functionTable = {
     sensorGetGravityValue: 20,
     sensorSetupOnGravityValues: 21,
     sensorWaitForGravityValues: 22,
-}
+} as const
 
 const mathUnaryOperationTable = {
     // trig

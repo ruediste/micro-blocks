@@ -42,7 +42,7 @@ namespace logicModule
 
         // logicOperation
         machine::registerFunction(
-            8,
+            13,
             []()
             {
                 auto type = machine::popUint8();

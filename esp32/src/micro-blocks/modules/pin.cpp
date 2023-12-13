@@ -86,7 +86,7 @@ namespace pinModule
                 uint8_t value = machine::popUint8();
                 uint8_t pin = machine::popUint8();
 
-                Serial.println(String("Thread ") + machine::currentThreadNr + " set pin " + pin + " to value " + value);
+                // Serial.println(String("Thread ") + machine::currentThreadNr + " set pin " + pin + " to value " + value);
                 pinMode(pin, OUTPUT);
                 digitalWrite(pin, value);
             });

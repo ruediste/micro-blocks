@@ -64,7 +64,7 @@ Blockly.Blocks['sensor_get_gravity_value'] = {
 blockCodeGenerators.sensor_get_gravity_value = (block, buffer, ctx) => {
     buffer.startSegment();
     buffer.addCall(functionTable.sensorGetGravityValue, 'Number',
-        { type: 'uint8', value: { 'X': 0, 'Z': 1, 'Y': 2 }[block.getFieldValue('AXIS') as string]! },
+        { type: 'uint8', value: { 'X': 0, 'Y': 1, 'Z': 2 }[block.getFieldValue('AXIS') as string]! },
     );
     return { type: 'Number', code: buffer.endSegment() };
 };
