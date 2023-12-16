@@ -44,9 +44,7 @@ addCategory({
 });
 
 blockCodeGenerators.logic_boolean = (block, buffer) => {
-    buffer.startSegment();
-    buffer.addPushUint8(block.getFieldValue('BOOL') === 'TRUE' ? 1 : 0);
-    return { type: "Boolean", code: buffer.endSegment() };
+    return { type: "Boolean", code: buffer.startSegment().addPushUint8(block.getFieldValue('BOOL') === 'TRUE' ? 1 : 0) };
 }
 
 
@@ -54,25 +52,19 @@ blockCodeGenerators.logic_compare = (block, buffer, ctx) => {
     const op = block.getFieldValue('OP') as 'EQ' | 'NEQ' | 'LT' | 'LTE' | 'GT' | 'GTE';
     const a = generateCodeForBlock('Number', block.getInputTargetBlock('A'), buffer, ctx);
     const b = generateCodeForBlock('Number', block.getInputTargetBlock('B'), buffer, ctx);
-    buffer.startSegment();
-    functionCallers.logicCompare(buffer, a, b, op);
-    return { type: "Boolean", code: buffer.endSegment() };
+    return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicCompare(code, a, b, op)) };
 }
 
 blockCodeGenerators.logic_operation = (block, buffer, ctx) => {
     const op = block.getFieldValue('OP') as 'AND' | 'OR';
     const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('A'), buffer, ctx);
     const b = generateCodeForBlock('Boolean', block.getInputTargetBlock('B'), buffer, ctx);
-    buffer.startSegment();
-    buffer.addCall(functionTable.logicOperation, 'Boolean', a, b, { type: 'uint8', value: { AND: 0, OR: 1 }[op] });
-    return { type: "Boolean", code: buffer.endSegment() };
+    return { type: "Boolean", code: buffer.startSegment().addCall(functionTable.logicOperation, 'Boolean', a, b, { type: 'uint8', value: { AND: 0, OR: 1 }[op] }) };
 }
 
 blockCodeGenerators.logic_negate = (block, buffer, ctx) => {
     const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('BOOL'), buffer, ctx);
-    buffer.startSegment();
-    functionCallers.logicNegate(buffer, a);
-    return { type: "Boolean", code: buffer.endSegment() };
+    return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicNegate(code, a)) };
 }
 
 blockCodeGenerators.logic_ternary = (block, buffer, ctx) => {
@@ -100,16 +92,15 @@ blockCodeGenerators.logic_ternary = (block, buffer, ctx) => {
 
     const condition = generateCodeForBlock('Boolean', block.getInputTargetBlock('IF'), buffer, ctx).code;
 
-    buffer.startSegment();
-    buffer.addSegment(codeThen.code);
-    buffer.addJump(buffer.size(codeElse.code))
-    const thenJump = buffer.endSegment();
+    const thenJump = buffer.startSegment()
+        .addSegment(codeThen.code)
+        .addJump(codeElse.code.size());
 
-    buffer.startSegment();
-    buffer.addSegment(condition);
-    buffer.addJz(buffer.size(thenJump));
-    buffer.addSegment(thenJump);
-    buffer.addSegment(codeElse.code);
-
-    return { type: type, code: buffer.endSegment() };
+    return {
+        type: type, code: buffer.startSegment()
+            .addSegment(condition)
+            .addJz(thenJump.size())
+            .addSegment(thenJump)
+            .addSegment(codeElse.code)
+    };
 }

@@ -32,20 +32,16 @@ Blockly.Blocks['sensor_on_gravity_values'] = {
 };
 
 blockCodeGenerators.sensor_on_gravity_values = (block, buffer, ctx) => {
-    const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
+    const main = buffer.startSegment()
+        .addCall(functionTable.sensorWaitForGravityValues, null)
+        .addSegment(generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx));
 
-    buffer.startSegment();
-    buffer.addCall(functionTable.sensorSetupOnGravityValues, null);
-    const setup = buffer.endSegment();
-
-    buffer.startSegment();
-    buffer.addCall(functionTable.sensorWaitForGravityValues, null);
-    buffer.addSegment(body);
-    const main = buffer.endSegment();
-
-    buffer.startSegment();
-    buffer.addJump(-buffer.size([main]));
-    return { type: null, code: [setup, main, buffer.endSegment()] };
+    return {
+        type: null, code: buffer.startSegment()
+            .addCall(functionTable.sensorSetupOnGravityValues, null)
+            .addSegment(main)
+            .addJump(-main.size())
+    };
 };
 
 
@@ -62,9 +58,9 @@ Blockly.Blocks['sensor_get_gravity_value'] = {
 };
 
 blockCodeGenerators.sensor_get_gravity_value = (block, buffer, ctx) => {
-    buffer.startSegment();
-    buffer.addCall(functionTable.sensorGetGravityValue, 'Number',
-        { type: 'uint8', value: { 'X': 0, 'Y': 1, 'Z': 2 }[block.getFieldValue('AXIS') as string]! },
-    );
-    return { type: 'Number', code: buffer.endSegment() };
+    return {
+        type: 'Number', code: buffer.startSegment().addCall(functionTable.sensorGetGravityValue, 'Number',
+            { type: 'uint8', value: { 'X': 0, 'Y': 1, 'Z': 2 }[block.getFieldValue('AXIS') as string]! },
+        )
+    };
 };

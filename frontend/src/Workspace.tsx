@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { post } from './system/useData';
 import Sensor from './Sensor';
 import { DesktopDownloadIcon, DownloadIcon, PlayIcon, UploadIcon } from '@primer/octicons-react';
+import { useWebsocketState } from './websocket';
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -84,6 +85,8 @@ export default function Workspace() {
     localStorage.setItem("workspace", JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!)))
   }
 
+  const websocketState = useWebsocketState();
+
   useEffect(() => {
     ref.current!.innerHTML = '';
 
@@ -124,6 +127,7 @@ export default function Workspace() {
         else
           toast("There was a compilation error", { type: 'error' });
       }}>Run <PlayIcon /> </button>
+      {websocketState == 'connected' || <div className="spinner-border text-primary" role="status" />}
       <Sensor />
       <button type="button" className="btn btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => {
         save("workspace.mb", new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!))]));

@@ -1,9 +1,9 @@
 import Blockly, { BlocklyOptions, FieldVariable } from 'blockly';
-import { ArrayBufferBuilder, ArrayBufferSegment, FunctionInfos } from './ArrayBufferBuilder';
 import { functionByNumber } from './functionTable';
+import { CodeBuffer, CodeBuilder, FunctionInfos } from './CodeBuffer';
 
 export interface VariableInfo {
-    type: "Number"
+    type: "Number" | "String"
     offset: number
 }
 
@@ -14,17 +14,17 @@ export type VariableInfos = {
 export interface BlockCodeGeneratorContext {
     variables: VariableInfos
     expectedType: BlockType
-
-    getVariable: (block: Blockly.Block, name: string) => VariableInfo
+    getVariable: (block: Blockly.Block, name: string) => VariableInfo,
+    addToConstantPool: (action: (code: CodeBuilder) => void) => number
 }
-type BlockCodeGenerator = (block: Blockly.Block, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
+type BlockCodeGenerator = (block: Blockly.Block, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
 export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
 
 interface ThreadInfo {
     nr: number;
     block: Blockly.Block
     maxStack?: number;
-    code?: ArrayBufferSegment;
+    code?: CodeBuilder;
     codeOffset?: number;
     stackOffset?: number;
 }
@@ -32,29 +32,27 @@ interface ThreadInfo {
 export type BlockType =
     'Boolean' // a boolean represented as uint8
     | 'Number' // a number represented as float
+    | 'String' // a string represented as a pointer to a string object
     | null // the block does not push a value on the stack
     ;
 
 export interface BlockCode<T extends BlockType> {
-    code: ArrayBufferSegment;
+    code: CodeBuilder;
     type: T
 }
 
-export function generateCodeForBlock<T extends BlockType>(type: T | undefined, block: Blockly.Block | null, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext): { code: ArrayBufferSegment, type: T } {
-    if (buffer.isAppending) {
-        throw new Error("Cannot generate code while generating a segment")
-    }
+export function generateCodeForBlock<T extends BlockType>(type: T | undefined, block: Blockly.Block | null, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext): { code: CodeBuilder, type: T } {
     if (block == null) {
         if (type === undefined) {
             throw new Error("No type expected and block is null, cannot create a default value");
         }
-        buffer.startSegment();
+        const code = buffer.startSegment();
         switch (type) {
             case null: break;
-            case 'Boolean': buffer.addPushUint8(0); break;
-            case 'Number': buffer.addPushFloat(0); break;
+            case 'Boolean': code.addPushUint8(0); break;
+            case 'Number': code.addPushFloat(0); break;
         }
-        return { code: buffer.endSegment(), type }
+        return { code, type }
     }
 
     const generator = blockCodeGenerators[block.type];
@@ -70,18 +68,18 @@ export function generateCodeForBlock<T extends BlockType>(type: T | undefined, b
     return result as any;
 }
 
-export function generateCodeForSequence(firstBlock: Blockly.Block | null, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext): ArrayBufferSegment {
-    const segments: ArrayBufferSegment[] = [];
+export function generateCodeForSequence(firstBlock: Blockly.Block | null, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext): CodeBuilder {
+    const result = buffer.startSegment();
     let block: Blockly.Block | null = firstBlock;
     while (block != null) {
         const code = generateCodeForBlock(null, block, buffer, ctx);
         if (code.type !== null) {
             throw new Error("Expected block not to push anything to the stack but got " + code.type);
         }
-        segments.push(code.code);
+        result.addSegment(code.code);
         block = block.getNextBlock();
     }
-    return segments;
+    return result;
 }
 
 class MaxStackSizeCalculator {
@@ -117,10 +115,10 @@ class MaxStackSizeCalculator {
     }
 }
 
-function generateCodeForThread(thread: ThreadInfo, buffer: ArrayBufferBuilder, ctx: BlockCodeGeneratorContext) {
+function generateCodeForThread(thread: ThreadInfo, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) {
     thread.code = generateCodeForBlock(null, thread.block, buffer, ctx).code;
 
-    const code = new DataView(buffer.toBuffer(thread.code));
+    const code = new DataView(thread.code!.toBuffer());
     console.log("Thread " + thread.nr)
     console.log(disassemble(code));
     thread.maxStack = new MaxStackSizeCalculator(code, buffer.functionInfos).maxStackSize;
@@ -200,7 +198,7 @@ function disassemble(code: DataView) {
 
 export default function compile(workspace: Blockly.Workspace): ArrayBuffer | undefined {
     try {
-        const buffer = new ArrayBufferBuilder();
+        const buffer = new CodeBuffer();
 
         let globalVariablesSize = 0;
         const variableInfos: VariableInfos = {};
@@ -209,38 +207,54 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
             variableInfos[variable.name] = { type: variable.type as any, offset: globalVariablesSize };
             globalVariablesSize += 4;
         });
+        const constantPool = buffer.startSegment();
+        let constantPoolOffset = 0;
         const threads: ThreadInfo[] = workspace.getTopBlocks().filter(block => block.isEnabled()).map((block, nr) => ({ block, nr }));
-        threads.forEach(thread => generateCodeForThread(thread, buffer, { variables: variableInfos, expectedType: null, getVariable: (block, name) => variableInfos[(block.getField('VAR') as FieldVariable).getVariable()!.name] }));
+        threads.forEach(thread => generateCodeForThread(thread, buffer, {
+            variables: variableInfos,
+            expectedType: null,
+            getVariable: (block, name) => variableInfos[(block.getField('VAR') as FieldVariable).getVariable()!.name],
+            addToConstantPool: action => {
+                const offset = constantPoolOffset;
+                const entry = buffer.startSegment();
+                action(entry);
+                constantPool.addSegment(entry);
+                constantPoolOffset += entry.size();
+                return offset;
+            }
+        }));
         const headerSize = 7;
         const threadTableSize = threads.length * 4;
-        const codeStart = headerSize + threadTableSize;
+        const codeStart = headerSize + threadTableSize + constantPoolOffset;
         let codeOffset = codeStart;
         let stackOffset = globalVariablesSize;
         threads.forEach((thread, threadNr) => {
             thread.codeOffset = codeOffset;
-            codeOffset += buffer.size(thread.code!);
+            codeOffset += thread.code!.size();
             thread.stackOffset = stackOffset;
             stackOffset += thread.maxStack!;
         });
 
-        const segments: ArrayBufferSegment[] = [];
-        buffer.startSegment();
-        buffer.addUint8(0x4d);
-        buffer.addUint8(0x42);
-        buffer.addUint8(0);
-        buffer.addUint16(threads.length);
-        buffer.addUint16(stackOffset);
+        const code = buffer.startSegment();
+        code.addUint8(0x4d);
+        code.addUint8(0x42);
+        code.addUint8(0);
+        code.addUint16(threads.length);
+        code.addUint16(stackOffset);
 
         console.log("Thread Offsets: " + threads.map(t => t.codeOffset))
 
         threads.forEach(thread => {
-            buffer.addUint16(thread.codeOffset!);
-            buffer.addUint16(thread.stackOffset!);
+            code.addUint16(thread.codeOffset!);
+            code.addUint16(thread.stackOffset!);
         })
-        segments.push(buffer.endSegment());
-        threads.forEach(thread => segments.push(thread.code!));
 
-        return buffer.toBuffer(segments);
+        code.addSegment(constantPool);
+
+        threads.forEach(thread => code.addSegment(thread.code!));
+
+
+        return code.toBuffer();
     } catch (e) {
         console.error(e);
     }

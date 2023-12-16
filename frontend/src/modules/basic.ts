@@ -44,12 +44,10 @@ Blockly.Blocks['basic_on_start'] = {
         this.setHelpUrl("");
     }
 };
+
 blockCodeGenerators.basic_on_start = (block, buffer, ctx) => {
     const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
-    buffer.startSegment();
-    buffer.addSegment(body);
-    buffer.addCall(functionTable.basicEndThread, null);
-    return { type: null, code: buffer.endSegment() };
+    return { type: null, code: buffer.startSegment().addSegment(body).addCall(functionTable.basicEndThread, null) };
 };
 
 Blockly.Blocks['basic_forever'] = {
@@ -64,22 +62,23 @@ Blockly.Blocks['basic_forever'] = {
     }
 };
 
-
 blockCodeGenerators.basic_forever = (block, buffer, ctx) => {
     const bodyBlock = block.getInputTargetBlock('BODY');
 
     // if the body is empty, just end the thread
     if (bodyBlock == null) {
-        buffer.startSegment();
-        buffer.addCall(functionTable.basicEndThread, null);
-        return { type: null, code: buffer.endSegment() };
+        return {
+            type: null, code: buffer.startSegment()
+                .addCall(functionTable.basicEndThread, null)
+        };
     }
 
     const body = generateCodeForSequence(bodyBlock, buffer, ctx);
-    buffer.startSegment();
-    buffer.addSegment(body);
-    buffer.addJump(-buffer.size(body));
-    return { type: null, code: buffer.endSegment() };
+    return {
+        type: null, code: buffer.startSegment()
+            .addSegment(body)
+            .addJump(-body.size())
+    };
 };
 
 Blockly.Blocks['basic_delay'] = {
@@ -98,10 +97,7 @@ Blockly.Blocks['basic_delay'] = {
     }
 };
 
-
 blockCodeGenerators.basic_delay = (block, buffer, ctx) => {
     const value = generateCodeForBlock('Number', block.getInputTargetBlock('DELAY'), buffer, ctx);
-    buffer.startSegment();
-    buffer.addCall(functionTable.basicDelay, null, value);
-    return { type: null, code: buffer.endSegment() };
+    return { type: null, code: buffer.startSegment().addCall(functionTable.basicDelay, null, value) };
 };

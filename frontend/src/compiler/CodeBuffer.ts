@@ -1,11 +1,5 @@
-import { append } from "blockly/core/serialization/blocks";
-import functionTable, { functionByNumber, functionCallers } from "./functionTable";
 import { BlockCode, BlockType, VariableInfo } from "./compile";
-
-export type ArrayBufferSegment = {
-    start: number // inclusive
-    end: number // exclusive
-} | ArrayBufferSegment[];
+import { functionByNumber, functionCallers } from "./functionTable";
 
 export interface FunctionInfos {
     [key: number]: {
@@ -13,81 +7,85 @@ export interface FunctionInfos {
     }
 }
 
+
 export type CallArgument = { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
     | { type: 'Number', value: number } | BlockCode<'Number'> | (VariableInfo & { type: 'Number' })
     | { type: 'uint16', value: number }
-    | { type: 'uint8', value: number };
+    | { type: 'uint8', value: number }
+    | BlockCode<'String'> | (VariableInfo & { type: 'String' });
 
-export class ArrayBufferBuilder {
-    private buffer = new DataView(new ArrayBuffer(1 << 20)); // one megabyte should do for now, and should not hurt any device running a browser 
-    private end = 0
-    private appending = false;
-    private partStart = 0;
 
-    private segments: ArrayBufferSegment[] = [];
+export class CodeBuilder {
+    segments: { start: number, end: number }[] = [];
 
-    functionInfos: FunctionInfos = {}
-
-    get isAppending() { return this.appending }
-
-    startSegment() {
-        if (this.appending)
-            throw new Error("There is still an unclosed appender")
-
-        this.partStart = this.end;
-        this.segments = [];
-        this.appending = true;
+    constructor(private buffer: CodeBuffer) {
     }
 
-    private endPart() {
-        this.checkAppending();
-        if (this.end === this.partStart)
-            return;
-        this.segments.push({ start: this.partStart, end: this.end });
-        this.partStart = this.end;
+
+    private withBuffer(action: (buffer: CodeBuffer) => void) {
+        if (this.segments.length == 0 || this.segments[this.segments.length - 1].end != this.buffer.end)
+            this.segments.push({ start: this.buffer.end, end: this.buffer.end });
+        action(this.buffer);
+        this.segments[this.segments.length - 1].end = this.buffer.end;
     }
 
-    endSegment(): ArrayBufferSegment {
-        this.endPart();
-        this.appending = false;
-        return this.segments.length === 1 ? this.segments[0] : this.segments;
+    public toBuffer() {
+        const size = this.size();
+        const outputBuffer = new ArrayBuffer(size);
+        const output = new DataView(outputBuffer);
+        let pos = 0
+        this.segments.forEach(segment => {
+            for (let i = segment.start; i < segment.end; i++)
+                output.setUint8(pos++, this.buffer.data.getUint8(i));
+        });
+        return outputBuffer;
     }
 
-    addSegment(segment: ArrayBufferSegment) {
-        this.endPart();
-        this.segments.push(segment);
+
+    public size(): number {
+        return this.segments.map(x => x.end - x.start).reduce((a, b) => a + b, 0);
     }
 
-    private checkAppending() {
-        if (!this.appending)
-            throw new Error("Appender has already been completed")
-    }
 
     public addUint8(value: number) {
-        this.checkAppending();
-        this.buffer.setUint8(this.end++, value);
+        this.withBuffer(buffer => {
+            buffer.data.setUint8(buffer.end++, value);
+        });
+        return this;
     };
 
+    public addUint8Array(value: Uint8Array) {
+        this.withBuffer(buffer => {
+            for (let i = 0; i < value.length; i++)
+                buffer.data.setUint8(buffer.end++, value[i]);
+        });
+        return this;
+    }
+
     public addUint16(value: number) {
-        this.checkAppending();
-        this.buffer.setUint16(this.end, value, true);
-        this.end += 2;
+        this.withBuffer(buffer => {
+            buffer.data.setUint16(buffer.end, value, true);
+            buffer.end += 2;
+        });
+        return this;
     };
     public addFloat(value: number) {
-        this.checkAppending();
-        this.buffer.setFloat32(this.end, value, true);
-        this.end += 4;
+        this.withBuffer(buffer => {
+            buffer.data.setFloat32(buffer.end, value, true);
+            buffer.end += 4;
+        });
+        return this;
     };
 
     private addOpcodeWithParameter(opcode: number, parameter: number, signed: boolean) {
         if (signed) {
             if (parameter >= -(2 ** 3) && parameter < 2 ** 3) {
                 // parameter fits into the opcode
-                this.addUint8(opcode << 6 | (parameter & 0xf))
+                this.addUint8((opcode << 6) | (parameter & 0xf))
             }
             else if (parameter >= -(2 ** 11) && parameter < 2 ** 11) {
                 // use one additional byte
-                this.addUint8(opcode << 6 | 0b01 << 4 | (parameter >> 8 & 0xf));
+                this.addUint8((opcode << 6) | (0b01 << 4) | (parameter >> 8 & 0xf));
                 this.addUint8(parameter & 0xff);
             }
             else if (parameter >= -(2 ** 19) && parameter < 2 ** 19) {
@@ -120,26 +118,33 @@ export class ArrayBufferBuilder {
     addPushUint8(value: number) {
         this.addOpcodeWithParameter(0b00, 1, false);
         this.addUint8(value);
+        return this;
     }
     addPushUint16(value: number) {
         this.addOpcodeWithParameter(0b00, 2, false);
         this.addUint16(value);
+        return this;
     }
     addPushFloat(value: number) {
         this.addOpcodeWithParameter(0b00, 4, false);
         this.addFloat(value);
+        return this;
     }
 
     addPush(view: DataView) {
         this.addOpcodeWithParameter(0b00, view.byteLength, false);
         for (let i = 0; i < view.byteLength; i++)
             this.addUint8(view.getUint8(i));
+        return this;
     }
-    addJump(offset: number) { this.addOpcodeWithParameter(0b01, offset, true) }
-    addJz(offset: number) { this.addOpcodeWithParameter(0b10, offset, true) }
-    addRawCall(functionNr: number) { this.addOpcodeWithParameter(0b11, functionNr, false) }
+    addJump(offset: number) { this.addOpcodeWithParameter(0b01, offset, true); return this; }
+    addJz(offset: number) { this.addOpcodeWithParameter(0b10, offset, true); return this; }
+    addRawCall(functionNr: number) { this.addOpcodeWithParameter(0b11, functionNr, false); return this; }
 
-
+    addSegment(...codeBuilders: CodeBuilder[]) {
+        codeBuilders.forEach(code => this.segments.push(...code.segments));
+        return this;
+    }
 
     addCall(functionNumber: number, retType: BlockType | null, ...args: CallArgument[]) {
         let stackDelta = 0;
@@ -165,12 +170,19 @@ export class ArrayBufferBuilder {
                     else
                         this.addPushFloat(x.value);
                     break;
+                case 'String':
+                    stackDelta -= 4;
+                    if ('code' in x)
+                        this.addSegment(x.code)
+                    else if ('offset' in x)
+                        functionCallers.variablesGetVar32(this, x);
+                    break;
                 case 'uint16':
                     stackDelta -= 2;
                     this.addPushUint16(x.value);
                     break;
                 default:
-                    throw new Error("Unknown type " + x);
+                    throw new Error("Unknown type " + (x as any).type);
             }
         });
         this.addRawCall(functionNumber);
@@ -178,39 +190,25 @@ export class ArrayBufferBuilder {
             case 'Boolean': stackDelta++; break;
             case 'Number': stackDelta += 4; break;
         }
-        const existingInfo = this.functionInfos[functionNumber];
+        const existingInfo = this.buffer.functionInfos[functionNumber];
         if (existingInfo !== undefined) {
             if (existingInfo.stackDelta !== stackDelta) {
                 throw new Error("Function " + functionByNumber[functionNumber] + "(" + functionNumber + ") was previously used with a stack delta of " + existingInfo.stackDelta + " but now with a stack delta of " + stackDelta)
             }
         } else
-            this.functionInfos[functionNumber] = { stackDelta: stackDelta };
+            this.buffer.functionInfos[functionNumber] = { stackDelta: stackDelta };
+        return this;
     }
+}
 
-    public size(segment: ArrayBufferSegment): number {
-        if (Array.isArray(segment))
-            return segment.map(x => this.size(x)).reduce((a, b) => a + b, 0);
-        else
-            return segment.end - segment.start;
-    }
+export class CodeBuffer {
+    public data = new DataView(new ArrayBuffer(1 << 20)); // one megabyte should do for now, and should not hurt any device running a browser 
+    public end = 0
+    functionInfos: FunctionInfos = {}
 
-    private append(segment: ArrayBufferSegment, pos: number, output: DataView): number {
-        if (Array.isArray(segment))
-            for (const x of segment) {
-                pos = this.append(x, pos, output);
-            }
-        else {
-            for (let i = segment.start; i < segment.end; i++)
-                output.setUint8(pos++, this.buffer.getUint8(i));
-        }
-        return pos;
-    }
-
-    toBuffer(segment: ArrayBufferSegment) {
-        const size = this.size(segment);
-        const buffer = new ArrayBuffer(size);
-        const output = new DataView(buffer);
-        this.append(segment, 0, output);
-        return buffer;
+    startSegment(action?: (code: CodeBuilder) => void) {
+        const code = new CodeBuilder(this);
+        action?.(code);
+        return code;
     }
 }

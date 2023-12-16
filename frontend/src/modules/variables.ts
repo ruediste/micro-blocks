@@ -31,20 +31,18 @@ toolboxCategoryCallbacks['VARIABLE_DYNAMIC_CUSTOM'] = flyoutCategoryCustom;
 blockCodeGenerators.variables_set_dynamic = (block, buffer, ctx) => {
     const variable = ctx.getVariable(block, 'VAR')
     const value = generateCodeForBlock(variable.type, block.getInputTargetBlock('VALUE')!, buffer, ctx);
-    buffer.startSegment();
-    functionCallers.variablesSetVar32(buffer, variable, value);
-    return { type: null, code: buffer.endSegment() }
+    return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar32(code, variable, value as any)) }
 };
 
 
 blockCodeGenerators.variables_get_dynamic = (block, buffer, ctx) => {
     const variable = ctx.getVariable(block, 'VAR')
-    buffer.startSegment();
+    const code = buffer.startSegment();
     switch (variable.type) {
         case "Number":
-            functionCallers.variablesGetVar32(buffer, variable);
+            functionCallers.variablesGetVar32(code, variable);
             break;
         default: throw new Error("Unknown variable type " + variable.type)
     }
-    return { type: variable.type, code: buffer.endSegment() };
+    return { type: variable.type, code };
 }

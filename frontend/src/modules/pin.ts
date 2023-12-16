@@ -86,25 +86,18 @@ Blockly.Blocks['pin_on_change'] = {
 blockCodeGenerators.pin_on_change = (block, buffer, ctx) => {
     const debounce = generateCodeForBlock("Number", block.getInputTargetBlock('DEBOUNCE')!, buffer, ctx);
 
-    buffer.startSegment();
-    buffer.addCall(functionTable.pinSetupOnChange, null,
+    const setup = buffer.startSegment().addCall(functionTable.pinSetupOnChange, null,
         { type: 'uint8', value: block.getFieldValue('PIN') },
         { type: 'uint8', value: { 'NONE': 0, 'UP': 1, 'DOWN': 2 }[block.getFieldValue('PULL') as string]! },
         { type: 'uint8', value: { 'BOTH': 0, 'RAISING': 1, 'FALLING': 2 }[block.getFieldValue('EDGE') as string]! },
         debounce,
     );
-    const setup = buffer.endSegment();
 
-    buffer.startSegment();
-    buffer.addCall(functionTable.pinWaitForChange, null);
-    const wait = buffer.endSegment();
+    const wait = buffer.startSegment().addCall(functionTable.pinWaitForChange, null);
     const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
+    const jump = buffer.startSegment().addJump(-(wait.size() + body.size()));
 
-    buffer.startSegment();
-    buffer.addJump(-buffer.size([wait, body]));
-    const jump = buffer.endSegment();
-
-    return { type: null, code: [setup, wait, body, jump] };
+    return { type: null, code: buffer.startSegment().addSegment(setup, wait, body, jump) };
 };
 
 Blockly.Blocks['pin_set'] = {
@@ -124,9 +117,7 @@ Blockly.Blocks['pin_set'] = {
 
 blockCodeGenerators.pin_set = (block, buffer, ctx) => {
     const value = generateCodeForBlock('Boolean', block.getInputTargetBlock('VALUE'), buffer, ctx);
-    buffer.startSegment();
-    buffer.addCall(functionTable.pinSet, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value);
-    return { type: null, code: buffer.endSegment() }
+    return { type: null, code: buffer.startSegment().addCall(functionTable.pinSet, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value) }
 };
 
 Blockly.Blocks['pin_set_analog'] = {
@@ -146,8 +137,6 @@ Blockly.Blocks['pin_set_analog'] = {
 
 blockCodeGenerators.pin_set_analog = (block, buffer, ctx) => {
     const value = generateCodeForBlock('Number', block.getInputTargetBlock('VALUE'), buffer, ctx);
-    buffer.startSegment();
-    buffer.addCall(functionTable.pinSetAnalog, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value);
-    return { type: null, code: buffer.endSegment() }
+    return { type: null, code: buffer.startSegment().addCall(functionTable.pinSetAnalog, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value) }
 };
 

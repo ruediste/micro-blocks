@@ -1,6 +1,6 @@
 import { get } from "http";
-import { ArrayBufferSegment } from "../compiler/ArrayBufferBuilder";
-import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
+import { CodeBuilder } from "../compiler/CodeBuffer";
+import { VariableInfo, blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 import { addCategory } from "../toolbox";
 
@@ -77,26 +77,27 @@ addCategory({
         // },
     ],
 });
+
 blockCodeGenerators.controls_repeat_ext = (block, buffer, ctx) => {
     const times = generateCodeForBlock('Number', block.getInputTargetBlock('TIMES'), buffer, ctx);
-    const body = generateCodeForSequence(block.getInputTargetBlock('DO'), buffer, ctx);
+    const main = buffer.startSegment(code => {
+        code.addSegment(generateCodeForSequence(block.getInputTargetBlock('DO'), buffer, ctx));
+        code.addCall(functionTable.controlsRepeatExtDone, 'Boolean');
+    });
 
-    buffer.startSegment();
-    buffer.addSegment(body);
-    buffer.addCall(functionTable.controlsRepeatExtDone, 'Boolean');
-    const main = buffer.endSegment();
-
-    buffer.startSegment();
-    buffer.addJz(-buffer.size(main));
-    buffer.addCall(functionTable.basicPop32, null, { type: 'Number', code: [] })
-    const jump = buffer.endSegment();
-
-    return { type: null, code: [times.code, main, jump] };
+    return {
+        type: null, code: buffer.startSegment(code => {
+            code.addSegment(times.code);
+            code.addSegment(main);
+            code.addJz(-main.size());
+            code.addCall(functionTable.basicPop32, null, { type: 'Number', code: buffer.startSegment() })
+        })
+    };
 };
 
 blockCodeGenerators.controls_if = (block, buffer, ctx) => {
     let n = 0;
-    const branches: { condition: ArrayBufferSegment, doBlock: ArrayBufferSegment }[] = [];
+    const branches: { condition: CodeBuilder, doBlock: CodeBuilder }[] = [];
     while (block.getInput('IF' + n)) {
         const condition = generateCodeForBlock('Boolean', block.getInputTargetBlock('IF' + n), buffer, ctx).code;
         const doBlock = generateCodeForSequence(block.getInputTargetBlock('DO' + n), buffer, ctx);
@@ -105,19 +106,26 @@ blockCodeGenerators.controls_if = (block, buffer, ctx) => {
     }
     const elseBlock = generateCodeForSequence(block.getInputTargetBlock('ELSE'), buffer, ctx);
 
-    let segments: ArrayBufferSegment[] = [elseBlock];
+
+    let segments = buffer.startSegment();
+    segments.addSegment(elseBlock);
     for (let i = branches.length - 1; i >= 0; i--) {
         const branch = branches[i];
-        buffer.startSegment();
-        buffer.addSegment(branch.doBlock);
-        buffer.addJump(buffer.size(segments));
-        const doJump = buffer.endSegment();
+        const doJump = buffer.startSegment(code => {
+            code.addSegment(branch.doBlock);
+            code.addJump(segments.size()); // jump to the end of the block after this branch
+        });
 
-        buffer.startSegment();
-        buffer.addSegment(branch.condition);
-        buffer.addJz(buffer.size(doJump));
+        const branchJz = buffer.startSegment(code => {
+            code.addSegment(branch.condition);
+            code.addJz(doJump.size()); // if false, jump to the end of this branch, otherwise fall through into the code of this branch
+        });
 
-        segments = [buffer.endSegment(), doJump, ...segments];
+        segments = buffer.startSegment(code => {
+            code.addSegment(branchJz);
+            code.addSegment(doJump);
+            code.addSegment(segments);
+        });
     }
     return { type: null, code: segments };
 };
@@ -127,52 +135,46 @@ blockCodeGenerators.controls_whileUntil = (block, buffer, ctx) => {
     const conditionBlock = generateCodeForBlock('Boolean', block.getInputTargetBlock('BOOL'), buffer, ctx);
     const body = generateCodeForSequence(block.getInputTargetBlock('DO'), buffer, ctx);
 
-    let condition: ArrayBufferSegment;
+    let condition: CodeBuilder;
     if (mode === 'WHILE') {
-        buffer.startSegment();
-        buffer.addCall(functionTable.logicNegate, 'Boolean', conditionBlock);
-        condition = buffer.endSegment();
+        condition = buffer.startSegment(code => code.addCall(functionTable.logicNegate, 'Boolean', conditionBlock));
     }
     else {
         condition = conditionBlock.code;
     }
 
-    buffer.startSegment();
-    buffer.addJump(buffer.size(body));
-    buffer.addSegment(body);
-    buffer.addSegment(condition);
-    buffer.addJz(-buffer.size([body, condition]));
+    const code = buffer.startSegment();
+    code.addJump(body.size());
+    code.addSegment(body);
+    code.addSegment(condition);
+    code.addJz(-(body.size() + condition.size()));
 
-    return { type: null, code: buffer.endSegment() };
+    return { type: null, code };
 }
 
 blockCodeGenerators.controls_for = (block, buffer, ctx) => {
-    const variable = ctx.getVariable(block, 'VAR')
+    const variable = ctx.getVariable(block, 'VAR') as VariableInfo & { type: 'Number' };
     const from = generateCodeForBlock('Number', block.getInputTargetBlock('FROM'), buffer, ctx);
     const to = generateCodeForBlock('Number', block.getInputTargetBlock('TO'), buffer, ctx);
     const by = generateCodeForBlock('Number', block.getInputTargetBlock('BY'), buffer, ctx);
     const body = generateCodeForSequence(block.getInputTargetBlock('DO'), buffer, ctx);
 
-    buffer.startSegment();
-    functionCallers.mathBinary(buffer, variable, by, 'ADD');
-    const getAndIncrement = { type: 'Number', code: buffer.endSegment() } as const;
+    const getAndIncrement = { type: 'Number', code: buffer.startSegment(code => functionCallers.mathBinary(code, variable, by, 'ADD')) } as const;
 
-    buffer.startSegment();
-    buffer.addSegment(body);
-    functionCallers.variablesSetVar32(buffer, variable, getAndIncrement);
-    const main = buffer.endSegment();
+    const main = buffer.startSegment(code => {
+        code.addSegment(body);
+        functionCallers.variablesSetVar32(code, variable, getAndIncrement);
+    });
 
-    buffer.startSegment();
-    functionCallers.logicCompare(buffer, variable, to, 'GTE');
-    const condition = buffer.endSegment();
+    const condition = buffer.startSegment(code => functionCallers.logicCompare(code, variable, to, 'GTE'));
 
 
-    buffer.startSegment();
-    functionCallers.variablesSetVar32(buffer, variable, from);
-    buffer.addJump(buffer.size(main));
-    buffer.addSegment(main);
-    buffer.addSegment(condition);
-    buffer.addJz(-buffer.size([main, condition]));
+    const code = buffer.startSegment();
+    functionCallers.variablesSetVar32(code, variable, from);
+    code.addJump(main.size());
+    code.addSegment(main);
+    code.addSegment(condition);
+    code.addJz(-(main.size() + condition.size()));
 
-    return { type: null, code: buffer.endSegment() };
+    return { type: null, code };
 }

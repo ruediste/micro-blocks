@@ -1,4 +1,4 @@
-import { ArrayQueue, ExponentialBackoff, WebsocketBuilder } from "websocket-ts";
+import { ArrayQueue, ConstantBackoff, ExponentialBackoff, WebsocketBuilder } from "websocket-ts";
 import BinaryMessageMapper from "./binaryMessageMapper";
 import { useEffect, useState } from "react";
 import { type } from "os";
@@ -7,18 +7,21 @@ export enum MessageType {
     GRAVITY_SENSOR_VALUE = 0,
 }
 
-interface EffectCallbacks {
+interface MessageHandler {
     onMessage: (msg: DataView) => void;
     onRetry: () => void;
     onReconnect: () => void;
 }
 
 const lastMessages: { [key in MessageType]?: DataView } = {};
-const callbacks: { [key in MessageType]?: Set<EffectCallbacks> } = {};
+const messageHandlers: { [key in MessageType]?: Set<MessageHandler> } = {};
+
+let websocketState: 'connected' | 'not-connected' = 'not-connected';
+const websocketStateChanged: Set<() => void> = new Set();
 
 const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development' ? 'micro-blocks.local' : window.location.host) + "/api/ws")
     .withBuffer(new ArrayQueue())           // buffer messages when disconnected
-    .withBackoff(new ExponentialBackoff(1000, 3)) // retry with exponential backoff 1s,2s,4s,8s
+    .withBackoff(new ConstantBackoff(1000)) // retry every second
     .onMessage((_, message) => {
         if (!(message.data instanceof ArrayBuffer)) {
             console.log("Received non array buffer message", message.type, message);
@@ -28,11 +31,13 @@ const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development
         const type = buffer.getUint8(0) as MessageType;
         lastMessages[type] = buffer;
         // console.log("Received message of type " + type);
-        callbacks[type]?.forEach(x => x.onMessage(buffer))
+        messageHandlers[type]?.forEach(x => x.onMessage(buffer))
     })
-    .onRetry(() => { Object.values(callbacks).forEach(x => x?.forEach(y => y.onRetry())) })
-    .onReconnect(() => { Object.values(callbacks).forEach(x => x?.forEach(y => y.onReconnect())) })
+    .onRetry(() => { websocketState = 'not-connected'; websocketStateChanged.forEach(x => x()); Object.values(messageHandlers).forEach(x => x?.forEach(y => y.onRetry())) })
+    .onReconnect(() => { websocketState = 'connected'; websocketStateChanged.forEach(x => x()); Object.values(messageHandlers).forEach(x => x?.forEach(y => y.onReconnect())) })
+    .onOpen(() => { websocketState = 'connected'; websocketStateChanged.forEach(x => x()); })
     .build();
+
 ws.binaryType = "arraybuffer";
 
 const placeholder = (
@@ -49,6 +54,7 @@ export function sendMessage<T>(type: MessageType, mapper: BinaryMessageMapper<T>
 }
 
 type UseLastMessageResult<T> = { state: 'loading', placeholder: React.ReactElement } | { state: 'loaded', value: T };
+
 export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapper<T>): UseLastMessageResult<T> {
     const readLastMessage: (() => UseLastMessageResult<T>) = () => {
         const buffer = lastMessages[typeId];
@@ -61,9 +67,9 @@ export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapp
     const [lastMessage, setLastMessage] = useState<UseLastMessageResult<T>>(() => readLastMessage())
 
     useEffect(() => {
-        if (callbacks[typeId] === undefined)
-            callbacks[typeId] = new Set() as any;
-        const cbs: EffectCallbacks = {
+        if (messageHandlers[typeId] === undefined)
+            messageHandlers[typeId] = new Set() as any;
+        const cbs: MessageHandler = {
             onMessage: (buffer: DataView) => {
                 const msg = mapper.fromBinary(buffer, 1);
                 console.log("received msg " + JSON.stringify(msg));
@@ -72,9 +78,20 @@ export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapp
             onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
             onReconnect: () => { setLastMessage(readLastMessage) },
         };
-        callbacks[typeId]!.add(cbs);
-        return () => { callbacks[typeId]!.delete(cbs); }
+        messageHandlers[typeId]!.add(cbs);
+        return () => { messageHandlers[typeId]!.delete(cbs); }
     });
 
     return lastMessage;
+}
+
+export function useWebsocketState(): typeof websocketState {
+    const [state, setState] = useState<typeof websocketState>(websocketState);
+    useEffect(() => {
+        const listener = () => setState(websocketState);
+        websocketStateChanged.add(listener);
+        setState(websocketState);
+        return () => { websocketStateChanged.delete(listener); }
+    });
+    return state;
 }

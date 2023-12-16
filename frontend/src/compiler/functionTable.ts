@@ -1,4 +1,4 @@
-import { ArrayBufferBuilder, CallArgument } from "./ArrayBufferBuilder";
+import { CodeBuffer, CallArgument, CodeBuilder } from "./CodeBuffer";
 import { VariableInfo } from "./compile";
 
 const functionTable = {
@@ -24,6 +24,10 @@ const functionTable = {
     sensorGetGravityValue: 20,
     sensorSetupOnGravityValues: 21,
     sensorWaitForGravityValues: 22,
+    textLoad: 23,
+    textPrintNumber: 24,
+    textPrintString: 25,
+    textPrintBool: 26,
 } as const
 
 const mathUnaryOperationTable = {
@@ -47,12 +51,12 @@ const mathBinaryOperationTable =
 }
 
 export const functionCallers = {
-    variablesSetVar32: (buffer: ArrayBufferBuilder, variable: VariableInfo, value: CallArgument & { type: 'Number' }) => buffer.addCall(functionTable.variablesSetVar32, null, { type: 'uint16', value: variable.offset }, value),
-    logicNegate: (buffer: ArrayBufferBuilder, a: CallArgument & { type: 'Boolean' }) => buffer.addCall(functionTable.logicNegate, 'Boolean', a),
-    mathBinary: (buffer: ArrayBufferBuilder, left: CallArgument & { type: 'Number' }, right: CallArgument & { type: 'Number' }, op: keyof typeof mathBinaryOperationTable) => buffer.addCall(functionTable.mathBinary, 'Number', left, right, { type: 'uint8', value: mathBinaryOperationTable[op] as number }),
-    logicCompare: (buffer: ArrayBufferBuilder, a: CallArgument & { type: 'Number' }, b: CallArgument & { type: 'Number' }, op: 'EQ' | 'NEQ' | 'LT' | 'LTE' | 'GT' | 'GTE') => buffer.addCall(functionTable.logicCompare, 'Boolean', a, b, { type: 'uint8', value: { EQ: 0, NEQ: 1, LT: 2, LTE: 3, GT: 4, GTE: 5 }[op] }),
-    variablesGetVar32: (buffer: ArrayBufferBuilder, variable: VariableInfo) => buffer.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset }),
-    mathUnary: (buffer: ArrayBufferBuilder, num: CallArgument & { type: 'Number' },
+    variablesSetVar32: (buffer: CodeBuilder, variable: VariableInfo, value: CallArgument & { type: 'Number' | 'String' }) => buffer.addCall(functionTable.variablesSetVar32, null, { type: 'uint16', value: variable.offset }, value),
+    logicNegate: (buffer: CodeBuilder, a: CallArgument & { type: 'Boolean' }) => buffer.addCall(functionTable.logicNegate, 'Boolean', a),
+    mathBinary: (buffer: CodeBuilder, left: CallArgument & { type: 'Number' }, right: CallArgument & { type: 'Number' }, op: keyof typeof mathBinaryOperationTable) => buffer.addCall(functionTable.mathBinary, 'Number', left, right, { type: 'uint8', value: mathBinaryOperationTable[op] as number }),
+    logicCompare: (buffer: CodeBuilder, a: CallArgument & { type: 'Number' }, b: CallArgument & { type: 'Number' }, op: 'EQ' | 'NEQ' | 'LT' | 'LTE' | 'GT' | 'GTE') => buffer.addCall(functionTable.logicCompare, 'Boolean', a, b, { type: 'uint8', value: { EQ: 0, NEQ: 1, LT: 2, LTE: 3, GT: 4, GTE: 5 }[op] }),
+    variablesGetVar32: (buffer: CodeBuilder, variable: VariableInfo) => buffer.addCall(functionTable.variablesGetVar32, variable.type, { type: 'uint16', value: variable.offset }),
+    mathUnary: (buffer: CodeBuilder, num: CallArgument & { type: 'Number' },
         op: keyof typeof mathUnaryOperationTable
     ) => buffer.addCall(functionTable.mathUnary, 'Number', num, {
         type: 'uint8', value: mathUnaryOperationTable[op]
