@@ -32,7 +32,24 @@ export interface BlockCodeGeneratorContext {
     variables: VariableInfos
     expectedType: BlockType
     getVariable: (block: Blockly.Block, name: string) => VariableInfo,
-    addToConstantPool: (action: (code: CodeBuilder) => void) => number
+    addToConstantPool: (action: (code: CodeBuilder) => void) => number,
+    blockData: BlockData
 }
+
+export class BlockData {
+    data: { [key: string]: any } = {}
+
+    get(block: Blockly.Block) {
+        return this.data[block.id];
+    }
+
+    set(block: Blockly.Block, value: any) {
+        this.data[block.id] = value;
+    }
+}
+
+export type ThreadCodeGenerator = (buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => CodeBuilder;
 type BlockCodeGenerator = (block: Blockly.Block, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
+
 export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
+export const threadExtractors: { [type: string]: (block: Blockly.Block, addThread: (generator: ThreadCodeGenerator) => number, ctx: { blockData: BlockData }) => void } = {}

@@ -1,7 +1,10 @@
-import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
+import { ThreadCodeGenerator, blockCodeGenerators, generateCodeForBlock, generateCodeForSequence, threadExtractors } from "../compiler/compile";
 import Blockly from 'blockly';
-import { addCategory } from "../toolbox";
+import { addCategory, clearToolbox } from "../toolbox";
 import functionTable, { functionCallers } from "../compiler/functionTable";
+import { CodeBuilder } from "../compiler/CodeBuffer";
+
+clearToolbox();
 
 addCategory({
     'kind': 'category',
@@ -45,10 +48,10 @@ Blockly.Blocks['basic_on_start'] = {
     }
 };
 
-blockCodeGenerators.basic_on_start = (block, buffer, ctx) => {
+threadExtractors.basic_on_start = (block, addThread) => addThread((buffer, ctx) => {
     const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
-    return { type: null, code: buffer.startSegment().addSegment(body).addCall(functionTable.basicEndThread, null) };
-};
+    return buffer.startSegment().addSegment(body).addCall(functionTable.basicEndThread, null);
+});
 
 Blockly.Blocks['basic_forever'] = {
     init: function () {
@@ -62,24 +65,19 @@ Blockly.Blocks['basic_forever'] = {
     }
 };
 
-blockCodeGenerators.basic_forever = (block, buffer, ctx) => {
+threadExtractors.basic_forever = (block, addThread) => addThread((buffer, ctx) => {
     const bodyBlock = block.getInputTargetBlock('BODY');
 
     // if the body is empty, just end the thread
     if (bodyBlock == null) {
-        return {
-            type: null, code: buffer.startSegment()
-                .addCall(functionTable.basicEndThread, null)
-        };
+        return buffer.startSegment().addCall(functionTable.basicEndThread, null)
     }
 
     const body = generateCodeForSequence(bodyBlock, buffer, ctx);
-    return {
-        type: null, code: buffer.startSegment()
-            .addSegment(body)
-            .addJump(-body.size())
-    };
-};
+    return buffer.startSegment()
+        .addSegment(body)
+        .addJump(-body.size())
+});
 
 Blockly.Blocks['basic_delay'] = {
     init: function () {

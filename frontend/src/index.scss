@@ -41,3 +41,14 @@ body, #root{
     display: flex; 
     flex-direction: column;
 }
+
+#gui-viewer{
+    .ui-cell{
+        display: flex;
+        align-items: stretch;
+
+        > * {
+            flex-grow: 1;
+        }
+    }
+}

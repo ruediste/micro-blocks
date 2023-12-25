@@ -1,4 +1,4 @@
-import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
+import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence, threadExtractors } from "../compiler/compile";
 import Blockly from 'blockly';
 import { addCategory } from "../toolbox";
 import functionTable from "../compiler/functionTable";
@@ -83,7 +83,7 @@ Blockly.Blocks['pin_on_change'] = {
     }
 };
 
-blockCodeGenerators.pin_on_change = (block, buffer, ctx) => {
+threadExtractors.pin_on_change = (block, addThread) => addThread((buffer, ctx) => {
     const debounce = generateCodeForBlock("Number", block.getInputTargetBlock('DEBOUNCE')!, buffer, ctx);
 
     const setup = buffer.startSegment().addCall(functionTable.pinSetupOnChange, null,
@@ -97,8 +97,8 @@ blockCodeGenerators.pin_on_change = (block, buffer, ctx) => {
     const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
     const jump = buffer.startSegment().addJump(-(wait.size() + body.size()));
 
-    return { type: null, code: buffer.startSegment().addSegment(setup, wait, body, jump) };
-};
+    return buffer.startSegment().addSegment(setup, wait, body, jump);
+});
 
 Blockly.Blocks['pin_set'] = {
     init: function () {

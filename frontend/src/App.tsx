@@ -10,6 +10,7 @@ import { WifiPage } from "./system/WifiConfig";
 import { SystemStatus } from "./system/SystemStatus";
 import { ToastContainer } from "react-toastify";
 import { LogViewer } from "./LogViewer";
+import { GuiDisplay } from "./GuiDisplay";
 
 interface NavEntry {
   title: string;
@@ -20,6 +21,7 @@ interface NavEntry {
 let navEntries: NavEntry[] = [
   { title: "Home", path: "/", component: <Workspace /> },
   { title: "Log", path: "/log", component: <LogViewer /> },
+  { title: "GUI", path: "/gui", component: <GuiDisplay /> },
   { title: "Wifi", path: "/wifiConfig", component: <WifiPage /> },
   {
     title: "System Status",
@@ -46,9 +48,9 @@ function Navigation() {
   return (
     <nav className="navbar navbar-expand-lg navbar-light bg-light">
       <div className="container-fluid">
-        <a className="navbar-brand" href="/">
-          Oven
-        </a>
+        <Link className="navbar-brand" to="/">
+          MicroBlocks
+        </Link>
         <button
           className="navbar-toggler"
           type="button"

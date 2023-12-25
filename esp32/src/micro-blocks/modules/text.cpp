@@ -44,7 +44,7 @@ namespace textModule
     void setup()
     {
         logSnapshot.message.clear();
-        logChanged = false;
+        logChanged = true;
         lastLogSend = millis() - 1000;
 
         // textLoad
@@ -116,7 +116,7 @@ namespace textModule
     void reset()
     {
         logSnapshot.message.clear();
-        logChanged = false;
+        logChanged = true;
         lastLogSend = millis() - 1000;
     }
 }

@@ -9,7 +9,9 @@ namespace websocket
     enum class MessageType : uint8_t
     {
         GRAVITY_SENSOR_VALUE,
-        LOG_SNAPSHOT
+        LOG_SNAPSHOT,
+        UI_SNAPSHOT,
+        BASIC_TRIGGER_CALLBACK,
     };
 
     struct MessageEntry

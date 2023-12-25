@@ -530,5 +530,8 @@ const defaultCategories: ToolboxInfo['contents'] = [
 export function addDefaultCategories() {
     //defaultCategories.forEach(c => toolbox.contents.push(c));
 }
+export function clearToolbox() {
+    toolbox.contents = [];
+}
 
 export default toolbox;

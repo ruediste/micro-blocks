@@ -3,11 +3,21 @@
 #include <Arduino.h>
 #include <deque>
 #include <vector>
+#include <set>
 #include <stdint.h>
+#include "../../websocket.h"
 
 namespace basicModule
 {
     std::deque<uint16_t> yieldedThreads;
+
+    std::set<uint16_t> readyCallbacks;
+    std::set<uint16_t> triggeredCallbacks;
+
+    void triggerCallback(uint16_t threadNr)
+    {
+        triggeredCallbacks.insert(threadNr);
+    }
 
     typedef struct
     {
@@ -37,6 +47,15 @@ namespace basicModule
                 machine::suspendCurrentThread();
             });
 
+        // basicCallbackReady
+        machine::registerFunction(
+            31,
+            []()
+            {
+                readyCallbacks.insert(machine::currentThreadNr);
+                machine::suspendCurrentThread();
+            });
+
         // basicDelay
         machine::registerFunction(
             9,
@@ -59,6 +78,13 @@ namespace basicModule
             {
                 machine::popUint32();
             });
+
+        websocket::handle<uint16_t>(
+            websocket::MessageType::BASIC_TRIGGER_CALLBACK,
+            [](uint16_t &message)
+            {
+                triggeredCallbacks.insert(message);
+            });
     }
 
     void reset()
@@ -80,6 +106,17 @@ namespace basicModule
             else
             {
                 entry++;
+            }
+        }
+
+        for (auto cb : triggeredCallbacks)
+        {
+            if (readyCallbacks.find(cb) != readyCallbacks.end())
+            {
+                triggeredCallbacks.erase(cb);
+                readyCallbacks.erase(cb);
+                machine::runThread(cb);
+                break;
             }
         }
 

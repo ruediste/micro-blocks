@@ -1,4 +1,4 @@
-import { CodeBuffer, CallArgument, CodeBuilder } from "./CodeBuffer";
+import { CallArgument, CodeBuilder } from "./CodeBuffer";
 import { VariableInfo } from "./compile";
 
 const functionTable = {
@@ -31,6 +31,8 @@ const functionTable = {
     textJoinString: 27,
     variablesGetResourceHandle: 28,
     variablesSetResourceHandle: 29,
+    guiShowButton: 30,
+    basicCallbackReady: 31,
 } as const
 
 const mathUnaryOperationTable = {

@@ -10,7 +10,7 @@ export function LogViewer() {
         for (let i = 0; i < lineCount; i++) {
             const lineNr = (firstLine + i) % lineCount;
             buffer.pos = linesStart + lineNr * lineLength;
-            lines.push(buffer.readString());
+            lines.push(buffer.readStringZ());
         }
         return lines;
     });
