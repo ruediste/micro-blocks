@@ -1,7 +1,6 @@
-import { ArrayQueue, ConstantBackoff, ExponentialBackoff, WebsocketBuilder } from "websocket-ts";
+import { ArrayQueue, ConstantBackoff, WebsocketBuilder } from "websocket-ts";
 import BinaryMessageMapper from "./binaryMessageMapper";
 import { useEffect, useState } from "react";
-import { type } from "os";
 
 export enum MessageType {
     GRAVITY_SENSOR_VALUE = 0,

@@ -24,6 +24,7 @@ var options: BlocklyOptions = {
   scrollbars: true,
   sounds: true,
   oneBasedIndex: true,
+  modalInputs: false,
 };
 
 function save(filename: string, data: Blob) {
