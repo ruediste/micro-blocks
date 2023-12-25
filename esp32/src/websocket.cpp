@@ -8,6 +8,35 @@ namespace websocket
 
     std::unordered_map<MessageType, MessageEntry> lastMessages;
 
+    void send(size_t wrappedMessageSize, uint8_t *wrappedMessageData)
+    {
+        MessageType type = *(MessageType *)wrappedMessageData;
+        auto entry = lastMessages.find(type);
+        if (entry != lastMessages.end())
+        {
+            if (!entry->second.dataManagedByClient)
+            {
+                free(entry->second.data);
+                entry->second.dataManagedByClient = true;
+                entry->second.dataSize = 0;
+            }
+
+            entry->second.wrappedMessageSize = wrappedMessageSize;
+            entry->second.data = wrappedMessageData;
+        }
+        else
+        {
+            MessageEntry entry;
+            entry.dataSize = 0;
+            entry.wrappedMessageSize = wrappedMessageSize;
+            entry.data = wrappedMessageData;
+            entry.dataManagedByClient = true;
+            lastMessages.insert({type, entry});
+        }
+
+        ws.binaryAll(wrappedMessageData, wrappedMessageSize);
+    }
+
     void send(MessageType type, size_t messageSize,
               uint8_t *messageData)
     {
@@ -16,19 +45,27 @@ namespace websocket
         auto entry = lastMessages.find(type);
         if (entry != lastMessages.end())
         {
-            if (entry->second.size < wrappedSize)
+            if (entry->second.dataManagedByClient || entry->second.dataSize < wrappedSize)
             {
-                free(entry->second.data);
-                entry->second.size = wrappedSize;
+                if (!entry->second.dataManagedByClient)
+                {
+                    free(entry->second.data);
+                }
+                entry->second.dataSize = wrappedSize;
                 entry->second.data = (uint8_t *)malloc(wrappedSize);
+                entry->second.dataManagedByClient = false;
             }
+
+            entry->second.wrappedMessageSize = wrappedSize;
             wrappedData = entry->second.data;
         }
         else
         {
             MessageEntry entry;
-            entry.size = wrappedSize;
+            entry.dataSize = wrappedSize;
+            entry.wrappedMessageSize = wrappedSize;
             entry.data = (uint8_t *)malloc(wrappedSize);
+            entry.dataManagedByClient = false;
             lastMessages.insert({type, entry});
             wrappedData = entry.data;
         }
@@ -75,7 +112,7 @@ namespace websocket
 
             for (auto &entry : lastMessages)
             {
-                client->binary(entry.second.data, entry.second.size);
+                client->binary(entry.second.data, entry.second.wrappedMessageSize);
             }
         }
         else if (type == WS_EVT_DISCONNECT)

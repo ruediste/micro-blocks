@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <Arduino.h>
 #include "modules/basic.h"
+#include "resourcePool.h"
 
 namespace machine
 {
@@ -89,6 +90,7 @@ namespace machine
         *((uint32_t *)(memory + currentThread().sp)) = value;
         currentThread().sp += 4;
     }
+
 
     void pushFloat(float value)
     {

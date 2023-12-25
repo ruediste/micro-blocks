@@ -5,6 +5,7 @@ import { type } from "os";
 
 export enum MessageType {
     GRAVITY_SENSOR_VALUE = 0,
+    LOG_SNAPSHOT = 1
 }
 
 interface MessageHandler {
@@ -74,6 +75,71 @@ export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapp
                 const msg = mapper.fromBinary(buffer, 1);
                 console.log("received msg " + JSON.stringify(msg));
                 setLastMessage({ state: 'loaded', value: msg })
+            },
+            onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
+            onReconnect: () => { setLastMessage(readLastMessage) },
+        };
+        messageHandlers[typeId]!.add(cbs);
+        return () => { messageHandlers[typeId]!.delete(cbs); }
+    });
+
+    return lastMessage;
+}
+
+export class BinaryReader {
+    constructor(public buffer: DataView, public pos: number = 0, public littleEndian: boolean = false) {
+    }
+
+    readUint8() {
+        const value = this.buffer.getUint8(this.pos);
+        this.pos += 1;
+        return value;
+    }
+
+    readUint16() {
+        const value = this.buffer.getUint16(this.pos, this.littleEndian);
+        this.pos += 2;
+        return value;
+    }
+
+    readUint32() {
+        const value = this.buffer.getUint32(this.pos, this.littleEndian);
+        this.pos += 4;
+        return value;
+    }
+
+    readFloat32() {
+        const value = this.buffer.getFloat32(this.pos, this.littleEndian);
+        this.pos += 4;
+        return value;
+    }
+
+    readString() {
+        const startPos = this.pos;
+        while (this.readUint8() != 0) {
+            // NOP
+        }
+        return new TextDecoder().decode(this.buffer.buffer.slice(startPos, this.pos - 1));
+    }
+}
+
+export function useLastMessageRaw<T>(typeId: MessageType, mapper: ((reader: BinaryReader) => T)): UseLastMessageResult<T> {
+    const readLastMessage: (() => UseLastMessageResult<T>) = () => {
+        const buffer = lastMessages[typeId];
+        if (buffer === undefined)
+            return { state: "loading", placeholder }
+        else
+            return { state: "loaded", value: mapper(new BinaryReader(buffer, 1, true)) }
+    }
+
+    const [lastMessage, setLastMessage] = useState<UseLastMessageResult<T>>(() => readLastMessage())
+
+    useEffect(() => {
+        if (messageHandlers[typeId] === undefined)
+            messageHandlers[typeId] = new Set() as any;
+        const cbs: MessageHandler = {
+            onMessage: (buffer: DataView) => {
+                setLastMessage({ state: 'loaded', value: mapper(new BinaryReader(buffer, 1, true)) })
             },
             onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
             onReconnect: () => { setLastMessage(readLastMessage) },

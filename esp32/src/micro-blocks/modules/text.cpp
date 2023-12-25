@@ -3,14 +3,50 @@
 #include <set>
 #include "../machine.h"
 #include "../resourcePool.h"
+#include "../../websocket.h"
 
 using namespace resourcePool;
 
 namespace textModule
 {
 
+    const int LOG_LINE_COUNT = 5;
+    const int LOG_LINE_LENGTH = 40;
+    typedef struct
+    {
+        uint8_t firstLine = 0;
+        uint8_t lineCount = LOG_LINE_COUNT;
+        uint8_t lineLength = LOG_LINE_LENGTH;
+
+        char lines[LOG_LINE_COUNT][LOG_LINE_LENGTH];
+
+        void clear()
+        {
+            firstLine = 0;
+            for (int i = 0; i < LOG_LINE_COUNT; i++)
+            {
+                lines[i][0] = 0;
+            }
+        }
+
+        void addLine(String &line)
+        {
+            line.toCharArray(lines[firstLine], LOG_LINE_LENGTH);
+            firstLine = (firstLine + 1) % LOG_LINE_COUNT;
+        }
+
+    } LogSnapshot;
+
+    websocket::MessageWrapper<LogSnapshot> logSnapshot(websocket::MessageType::LOG_SNAPSHOT);
+    bool logChanged;
+    time_t lastLogSend;
+
     void setup()
     {
+        logSnapshot.message.clear();
+        logChanged = false;
+        lastLogSend = millis() - 1000;
+
         // textLoad
         machine::registerFunction(
             23,
@@ -18,7 +54,7 @@ namespace textModule
             {
                 auto offset = machine::popUint16();
                 auto str = resourceHandle(new String(reinterpret_cast<const char *>(machine::constantPool(offset))));
-                machine::pushUint32(reinterpret_cast<uint32_t>(str));
+                machine::pushResourceHandle(str);
             });
 
         // textNumToString
@@ -28,7 +64,7 @@ namespace textModule
             {
                 auto value = machine::popFloat();
                 auto str = resourceHandle(new String(value));
-                machine::pushUint32(reinterpret_cast<uint32_t>(str));
+                machine::pushResourceHandle(str);
             });
 
         // textPrintString
@@ -36,8 +72,10 @@ namespace textModule
             25,
             []()
             {
-                auto str = reinterpret_cast<ResourceHandle<String> *>(machine::popUint32());
-                Serial.println(*(str->value));
+                auto str = machine::popResourceHandle<String>();
+                // Serial.println(**str);
+                logSnapshot.message.addLine(**str);
+                logChanged = true;
                 str->decRef();
             });
 
@@ -48,7 +86,7 @@ namespace textModule
             {
                 auto value = machine::popUint8();
                 auto str = resourceHandle(new String(value == 0 ? "false" : "true"));
-                machine::pushUint32(reinterpret_cast<uint32_t>(str));
+                machine::pushResourceHandle(str);
             });
 
         // textJoinString
@@ -56,10 +94,10 @@ namespace textModule
             27,
             []()
             {
-                auto str2 = reinterpret_cast<ResourceHandle<String> *>(machine::popUint32());
-                auto str1 = reinterpret_cast<ResourceHandle<String> *>(machine::popUint32());
+                auto str2 = machine::popResourceHandle<String>();
+                auto str1 = machine::popResourceHandle<String>();
                 auto str = resourceHandle(new String(**str1 + **str2));
-                machine::pushUint32(reinterpret_cast<uint32_t>(str));
+                machine::pushResourceHandle(str);
                 str1->decRef();
                 str2->decRef();
             });
@@ -67,9 +105,18 @@ namespace textModule
 
     void loop()
     {
+        if (logChanged && millis() - lastLogSend > 300)
+        {
+            logChanged = false;
+            websocket::send(logSnapshot);
+            lastLogSend = millis();
+        }
     }
 
     void reset()
     {
+        logSnapshot.message.clear();
+        logChanged = false;
+        lastLogSend = millis() - 1000;
     }
 }

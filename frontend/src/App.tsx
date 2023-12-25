@@ -9,6 +9,7 @@ import Workspace from "./Workspace";
 import { WifiPage } from "./system/WifiConfig";
 import { SystemStatus } from "./system/SystemStatus";
 import { ToastContainer } from "react-toastify";
+import { LogViewer } from "./LogViewer";
 
 interface NavEntry {
   title: string;
@@ -18,6 +19,7 @@ interface NavEntry {
 
 let navEntries: NavEntry[] = [
   { title: "Home", path: "/", component: <Workspace /> },
+  { title: "Log", path: "/log", component: <LogViewer /> },
   { title: "Wifi", path: "/wifiConfig", component: <WifiPage /> },
   {
     title: "System Status",
