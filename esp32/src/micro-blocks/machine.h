@@ -25,6 +25,7 @@ namespace machine
     void pushUint32(uint32_t value);
     void pushFloat(float value);
     uint8_t *variable(uint16_t offset);
+    uint8_t *constantPool(uint16_t offset);
 
     void registerFunction(uint16_t functionNr, MachineFunction function);
 

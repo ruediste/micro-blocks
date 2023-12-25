@@ -1,4 +1,4 @@
-import { blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
+import { VariableInfo, blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
 import Blockly, { FieldVariable, Msg, WorkspaceSvg } from 'blockly';
 import { addCategory, toolboxCategoryCallbacks } from "../toolbox";
 import functionTable, { functionCallers } from "../compiler/functionTable";
@@ -16,9 +16,15 @@ function flyoutCategoryCustom(workspace: WorkspaceSvg): Element[] {
     Blockly.VariablesDynamic.flyoutCategory(workspace);
 
     let xmlList = new Array<Element>();
+
     let button = document.createElement('button');
     button.setAttribute('text', Msg['NEW_NUMBER_VARIABLE']);
     button.setAttribute('callbackKey', 'CREATE_VARIABLE_NUMBER');
+    xmlList.push(button);
+
+    button = document.createElement('button');
+    button.setAttribute('text', Msg['NEW_STRING_VARIABLE']);
+    button.setAttribute('callbackKey', 'CREATE_VARIABLE_STRING');
     xmlList.push(button);
 
     const blockList = Blockly.VariablesDynamic.flyoutCategoryBlocks(workspace);
@@ -31,18 +37,23 @@ toolboxCategoryCallbacks['VARIABLE_DYNAMIC_CUSTOM'] = flyoutCategoryCustom;
 blockCodeGenerators.variables_set_dynamic = (block, buffer, ctx) => {
     const variable = ctx.getVariable(block, 'VAR')
     const value = generateCodeForBlock(variable.type, block.getInputTargetBlock('VALUE')!, buffer, ctx);
-    return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar32(code, variable, value as any)) }
+    if (variable.is("Number"))
+        return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar32(code, variable, value as any)) }
+    else if (variable.is("String"))
+        return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetResourceHandle(code, variable, value as any)) }
+    else
+        throw new Error("Unknown variable type " + variable.type)
 };
 
 
 blockCodeGenerators.variables_get_dynamic = (block, buffer, ctx) => {
     const variable = ctx.getVariable(block, 'VAR')
     const code = buffer.startSegment();
-    switch (variable.type) {
-        case "Number":
-            functionCallers.variablesGetVar32(code, variable);
-            break;
-        default: throw new Error("Unknown variable type " + variable.type)
-    }
+    if (variable.is("Number")) {
+        functionCallers.variablesGetVar32(code, variable);
+    } else if (variable.is("String")) {
+        functionCallers.variablesGetResourceHandle(code, variable);
+    } else
+        throw new Error("Unknown variable type " + variable.type)
     return { type: variable.type, code };
 }

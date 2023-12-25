@@ -9,7 +9,7 @@
 #include "controls.h"
 #include "sensor.h"
 #include "tft.h"
-
+#include "text.h"
 namespace modules
 {
     void setup()
@@ -22,6 +22,7 @@ namespace modules
         controlsModule::setup();
         sensorModule::setup();
         tftModule::setup();
+        textModule::setup();
     }
 
     void loop()
@@ -29,6 +30,7 @@ namespace modules
         pinModule::loop();
         sensorModule::loop();
         tftModule::loop();
+        textModule::loop();
 
         // the basic module should come last, to run yielded thread with lowest priority
         basicModule::loop();
@@ -38,5 +40,6 @@ namespace modules
     {
         basicModule::reset();
         pinModule::reset();
+        textModule::reset();
     }
 }

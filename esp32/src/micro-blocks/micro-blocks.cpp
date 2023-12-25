@@ -3,6 +3,7 @@
 #include "main.h"
 #include "machine.h"
 #include "modules/modules.h"
+#include "resourcePool.h"
 
 namespace microBlocks
 {
@@ -86,6 +87,7 @@ namespace microBlocks
             file.close();
 
             modules::reset();
+            resourcePool::clearResources();
 
             machine::applyCode(buf, size);
         }

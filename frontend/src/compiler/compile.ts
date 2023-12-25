@@ -1,44 +1,17 @@
-import Blockly, { BlocklyOptions, FieldVariable } from 'blockly';
-import { functionByNumber } from './functionTable';
+import Blockly, { FieldVariable } from 'blockly';
+import functionTable, { functionByNumber, functionCallers } from './functionTable';
 import { CodeBuffer, CodeBuilder, FunctionInfos } from './CodeBuffer';
-
-export interface VariableInfo {
-    type: "Number" | "String"
-    offset: number
-}
-
-export type VariableInfos = {
-    [key: string]: VariableInfo
-}
-
-export interface BlockCodeGeneratorContext {
-    variables: VariableInfos
-    expectedType: BlockType
-    getVariable: (block: Blockly.Block, name: string) => VariableInfo,
-    addToConstantPool: (action: (code: CodeBuilder) => void) => number
-}
-type BlockCodeGenerator = (block: Blockly.Block, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => BlockCode<BlockType>;
-export const blockCodeGenerators: { [type: string]: BlockCodeGenerator } = {}
+import { BlockCodeGeneratorContext, BlockType, VariableInfo, VariableInfos, blockCodeGenerators } from './blockCodeGenerator';
+import { loadString } from '../modules/text';
+export * from './blockCodeGenerator';
 
 interface ThreadInfo {
-    nr: number;
-    block: Blockly.Block
+    nr?: number;
     maxStack?: number;
     code?: CodeBuilder;
     codeOffset?: number;
     stackOffset?: number;
-}
-
-export type BlockType =
-    'Boolean' // a boolean represented as uint8
-    | 'Number' // a number represented as float
-    | 'String' // a string represented as a pointer to a string object
-    | null // the block does not push a value on the stack
-    ;
-
-export interface BlockCode<T extends BlockType> {
-    code: CodeBuilder;
-    type: T
+    generateCode: (thread: ThreadInfo, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => void;
 }
 
 export function generateCodeForBlock<T extends BlockType>(type: T | undefined, block: Blockly.Block | null, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext): { code: CodeBuilder, type: T } {
@@ -51,6 +24,8 @@ export function generateCodeForBlock<T extends BlockType>(type: T | undefined, b
             case null: break;
             case 'Boolean': code.addPushUint8(0); break;
             case 'Number': code.addPushFloat(0); break;
+            // case 'String': return loadString('', buffer, ctx) as any;
+            default: throw new Error("Unknown type " + type);
         }
         return { code, type }
     }
@@ -113,16 +88,6 @@ class MaxStackSizeCalculator {
             }
         }
     }
-}
-
-function generateCodeForThread(thread: ThreadInfo, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) {
-    thread.code = generateCodeForBlock(null, thread.block, buffer, ctx).code;
-
-    const code = new DataView(thread.code!.toBuffer());
-    console.log("Thread " + thread.nr)
-    console.log(disassemble(code));
-    thread.maxStack = new MaxStackSizeCalculator(code, buffer.functionInfos).maxStackSize;
-    console.log("MaxStack: " + thread.maxStack)
 }
 
 function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
@@ -203,14 +168,35 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         let globalVariablesSize = 0;
         const variableInfos: VariableInfos = {};
         workspace.getAllVariables().forEach((variable) => {
-            console.log(variable)
-            variableInfos[variable.name] = { type: variable.type as any, offset: globalVariablesSize };
+            variableInfos[variable.name] = new VariableInfo(variable.type as any, globalVariablesSize);
             globalVariablesSize += 4;
         });
         const constantPool = buffer.startSegment();
-        let constantPoolOffset = 0;
-        const threads: ThreadInfo[] = workspace.getTopBlocks().filter(block => block.isEnabled()).map((block, nr) => ({ block, nr }));
-        threads.forEach(thread => generateCodeForThread(thread, buffer, {
+        const threads: ThreadInfo[] = [];
+        threads.push({
+            generateCode: (thread, buffer, ctx) => {
+                const code = buffer.startSegment();
+                Object.values(variableInfos).forEach(variable => {
+                    if (variable.is("String")) {
+                        functionCallers.variablesSetResourceHandle(code, variable, loadString('', buffer, ctx));
+                    }
+                });
+                code.addCall(functionTable.basicEndThread, null);
+                return thread.code = code;
+            }
+        })
+        workspace.getTopBlocks().filter(block => block.isEnabled()).forEach((block) => threads.push({
+            generateCode: (thread, buffer, ctx) => thread.code = generateCodeForBlock(null, block, buffer, ctx).code
+        }));
+
+        threads.forEach((thread, nr) => thread.nr = nr);
+
+        const headerSize = 7;
+        const threadTableSize = threads.length * 4;
+        const constantPoolStart = headerSize + threadTableSize;
+        let constantPoolOffset = constantPoolStart;
+
+        const ctx: BlockCodeGeneratorContext = {
             variables: variableInfos,
             expectedType: null,
             getVariable: (block, name) => variableInfos[(block.getField('VAR') as FieldVariable).getVariable()!.name],
@@ -222,10 +208,18 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
                 constantPoolOffset += entry.size();
                 return offset;
             }
-        }));
-        const headerSize = 7;
-        const threadTableSize = threads.length * 4;
-        const codeStart = headerSize + threadTableSize + constantPoolOffset;
+        }
+        threads.forEach(thread => thread.generateCode(thread, buffer, ctx));
+
+        threads.forEach(thread => {
+            const code = new DataView(thread.code!.toBuffer());
+            console.log("Thread " + thread.nr)
+            console.log(disassemble(code));
+            thread.maxStack = new MaxStackSizeCalculator(code, buffer.functionInfos).maxStackSize;
+            console.log("MaxStack: " + thread.maxStack)
+        });
+
+        const codeStart = constantPoolOffset;
         let codeOffset = codeStart;
         let stackOffset = globalVariablesSize;
         threads.forEach((thread, threadNr) => {

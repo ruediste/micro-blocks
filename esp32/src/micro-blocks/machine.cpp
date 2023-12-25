@@ -63,6 +63,11 @@ namespace machine
         return memory + offset;
     }
 
+    uint8_t *constantPool(uint16_t offset)
+    {
+        return code + offset;
+    }
+
     float popFloat()
     {
         currentThread().sp -= 4;

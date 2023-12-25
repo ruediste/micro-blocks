@@ -1,4 +1,4 @@
-import { BlockCode, BlockType, VariableInfo } from "./compile";
+import { BlockCode, BlockType, VariableInfo } from "./blockCodeGenerator";
 import { functionByNumber, functionCallers } from "./functionTable";
 
 export interface FunctionInfos {
@@ -20,7 +20,6 @@ export class CodeBuilder {
 
     constructor(private buffer: CodeBuffer) {
     }
-
 
     private withBuffer(action: (buffer: CodeBuffer) => void) {
         if (this.segments.length == 0 || this.segments[this.segments.length - 1].end != this.buffer.end)
@@ -175,7 +174,7 @@ export class CodeBuilder {
                     if ('code' in x)
                         this.addSegment(x.code)
                     else if ('offset' in x)
-                        functionCallers.variablesGetVar32(this, x);
+                        functionCallers.variablesGetResourceHandle(this, x);
                     break;
                 case 'uint16':
                     stackDelta -= 2;
@@ -189,6 +188,7 @@ export class CodeBuilder {
         switch (retType) {
             case 'Boolean': stackDelta++; break;
             case 'Number': stackDelta += 4; break;
+            case 'String': stackDelta += 4; break;
         }
         const existingInfo = this.buffer.functionInfos[functionNumber];
         if (existingInfo !== undefined) {
