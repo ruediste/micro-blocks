@@ -52,10 +52,10 @@ namespace wifiManager
     String wifiStaPwd;
 
     const char *WIFI_AP_SSID_KEY = "wifi_ap_ssid";
-    String wifiApSsid = "oven";
+    String wifiApSsid = "micro-blocks";
 
     const char *WIFI_AP_PWD_KEY = "wifi_ap_pwd";
-    String wifiApPwd = "oven1234";
+    String wifiApPwd = "micro-blocks";
 
     class CaptiveRequestHandler : public AsyncWebHandler
     {

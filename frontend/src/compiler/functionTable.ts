@@ -33,6 +33,7 @@ const functionTable = {
     variablesSetResourceHandle: 29,
     guiShowButton: 30,
     basicCallbackReady: 31,
+    pinReadAnalog: 32,
 } as const
 
 const mathUnaryOperationTable = {

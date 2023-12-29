@@ -52,7 +52,10 @@ addCategory({
                 },
             }
         },
-
+        {
+            'type': 'pin_read_analog',
+            'kind': 'block'
+        }
     ]
 });
 
@@ -140,3 +143,18 @@ blockCodeGenerators.pin_set_analog = (block, buffer, ctx) => {
     return { type: null, code: buffer.startSegment().addCall(functionTable.pinSetAnalog, null, { type: 'uint8', value: block.getFieldValue('PIN') }, value) }
 };
 
+Blockly.Blocks['pin_read_analog'] = {
+    init: function () {
+        this.appendDummyInput()
+            .appendField("Read Analog Pin")
+            .appendField(new Blockly.FieldNumber(0,0, 40), "PIN")
+        this.setOutput(true, "Number");
+        this.setColour(230);
+        this.setTooltip("Read an analog input as a value between 0 and 1");
+        this.setHelpUrl("");
+    }
+};
+
+blockCodeGenerators.pin_read_analog = (block, buffer, ctx) => {
+    return { type: 'Number', code: buffer.startSegment().addCall(functionTable.pinReadAnalog, 'Number', { type: 'uint8', value: block.getFieldValue('PIN') }) }
+};

@@ -91,6 +91,18 @@ namespace pinModule
                 digitalWrite(pin, value);
             });
 
+        // pinReadAnalog
+        machine::registerFunction(
+            32,
+            []()
+            {
+                uint8_t pin = machine::popUint8();
+
+                pinMode(pin, ANALOG);
+                machine::pushFloat(analogRead(pin)/4095.);
+            });
+
+        analogReadResolution(12);
         analogWriteResolution(10);
         analogWriteFrequency(1000);
 
