@@ -3,7 +3,8 @@ import { BinaryReader, MessageType, sendMessage, sendMessageRaw, useLastMessageR
 import { useState } from "react";
 
 enum GuiElementType {
-    ButtonElement
+    ButtonElement,
+    TextElement,
 }
 
 interface GuiElementBase {
@@ -21,8 +22,12 @@ interface ButtonElement extends GuiElementBase {
     onReleaseThread: number;
     text: string;
 }
+interface TextElement extends GuiElementBase {
+    type: GuiElementType.TextElement;
+    text: string;
+}
 
-type GuiElement = ButtonElement;
+type GuiElement = ButtonElement | TextElement;
 
 function readGuiElement(buffer: BinaryReader): GuiElementBase {
     const result = {
@@ -33,6 +38,10 @@ function readGuiElement(buffer: BinaryReader): GuiElementBase {
         rowSpan: buffer.readUint8(),
     }
     return result;
+}
+
+function isElementOfType<TT extends GuiElementType, T extends GuiElement & { type: TT }>(element: T, type: TT): element is T {
+    return element.type == type;
 }
 
 function triggerCallback(threadId: number) {
@@ -50,9 +59,11 @@ function DisplayElement({ element }: { element: GuiElement }) {
                 onTouchStart={() => { triggerCallback(element.onPressThread); }}
                 onTouchEnd={() => { triggerCallback(element.onReleaseThread); }}
             >{element.text}</button>
+        case GuiElementType.TextElement:
+            return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'lightGray' }} >{element.text}</div>
         default:
-            return <div>
-                Unknown element type {element.type}
+            return <div >
+                Unknown element type {(element as any).type}
             </div>
     }
 }
@@ -63,12 +74,13 @@ export function GuiDisplay() {
         const elements: GuiElement[] = [];
 
         for (let i = 0; i < elementCount; i++) {
-            const guiElement = readGuiElement(buffer);
+            const base = readGuiElement(buffer);
 
-            switch (guiElement.type) {
-                case GuiElementType.ButtonElement:
+            switch (base.type) {
+                case GuiElementType.ButtonElement: {
                     const buttonElement: ButtonElement = {
-                        ...guiElement,
+                        ...base,
+                        type: base.type,
                         onClickThread: buffer.readUint16(),
                         onPressThread: buffer.readUint16(),
                         onReleaseThread: buffer.readUint16(),
@@ -76,8 +88,18 @@ export function GuiDisplay() {
                     }
                     elements.push(buttonElement);
                     break;
+                }
+                case GuiElementType.TextElement: {
+                    const buttonElement: TextElement = {
+                        ...base,
+                        type: base.type,
+                        text: buffer.readStringN(),
+                    }
+                    elements.push(buttonElement);
+                    break;
+                }
                 default:
-                    throw new Error("Unknown GUI element type " + guiElement.type);
+                    throw new Error("Unknown GUI element type " + base.type);
             }
         }
         return elements;

@@ -1,3 +1,4 @@
+import Blockly from 'blockly';
 import { CodeBuffer } from "../compiler/CodeBuffer";
 import { BlockCode, BlockCodeGeneratorContext, BlockType, blockCodeGenerators, generateCodeForBlock } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
@@ -60,9 +61,15 @@ export function generateToString<T extends BlockType>(buffer: CodeBuffer, value:
     }
 }
 
+export function generateBlockToString(block: Blockly.Block, inputName: string, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext): BlockCode<'String'> {
+    return generateToString(buffer, generateCodeForBlock(undefined, block.getInputTargetBlock(inputName), buffer, ctx));
+}
+
 blockCodeGenerators.text_print = (block, buffer, ctx) => {
-    const text = generateCodeForBlock(undefined, block.getInputTargetBlock('TEXT'), buffer, ctx);
-    return { type: null, code: buffer.startSegment().addCall(functionTable.textPrintString, null, generateToString(buffer, text)) };
+    return {
+        type: null, code: buffer.startSegment().addCall(functionTable.textPrintString, null,
+            generateBlockToString(block, 'TEXT', buffer, ctx))
+    };
 };
 
 blockCodeGenerators.text_join = (block, buffer, ctx) => {

@@ -7,7 +7,8 @@
 namespace machine
 {
 
-    MachineFunction functions[256];
+    const int MAX_FUNCTIONS = 256;
+    MachineFunction functions[MAX_FUNCTIONS];
 
     uint8_t *code = NULL;
     uint8_t *memory = NULL;
@@ -91,7 +92,6 @@ namespace machine
         currentThread().sp += 4;
     }
 
-
     void pushFloat(float value)
     {
         *((float *)(memory + currentThread().sp)) = value;
@@ -142,6 +142,8 @@ namespace machine
 
     void setup()
     {
+        for (int i = 0; i < MAX_FUNCTIONS; i++)
+            functions[i] = NULL;
     }
 
     void runThread(uint16_t threadNr)
@@ -192,7 +194,9 @@ namespace machine
             {
                 int32_t functionNr = readArgument(thread.pc, false);
                 // Serial.println(String("Calling function ") + functionNr + " SP: " + (thread.sp - threadTableEntry(threadNr).stackOffset));
-                functions[functionNr]();
+                auto function = functions[functionNr];
+                if (function != NULL)
+                    function();
                 break;
             }
             default:

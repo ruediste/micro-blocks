@@ -9,7 +9,8 @@ namespace guiModule
 {
     enum class GuiElementType : uint8_t
     {
-        BUTTON
+        BUTTON,
+        TEXT,
     };
 
     struct __attribute__((packed)) GuiElementData
@@ -35,6 +36,15 @@ namespace guiModule
         virtual void writeAdditionalData(std::vector<uint8_t> &data) {}
 
         virtual ~GuiElement() {}
+
+        void pushString(std::vector<uint8_t> &data, String &str)
+        {
+            data.push_back(str.length());
+            for (int i = 0; i < str.length(); i++)
+            {
+                data.push_back(str[i]);
+            }
+        }
     };
 
     struct __attribute__((packed)) ButtonElementData : public GuiElementData
@@ -61,17 +71,56 @@ namespace guiModule
 
         void writeAdditionalData(std::vector<uint8_t> &data) override
         {
-            data.push_back(text->value->length());
-            for (int i = 0; i < text->value->length(); i++)
-            {
-                data.push_back((*text->value)[i]);
-            }
+            this->pushString(data, **text);
+        }
+    };
+
+    struct __attribute__((packed)) TextElementData : public GuiElementData
+    {
+        TextElementData() : GuiElementData(GuiElementType::TEXT) {}
+    };
+
+    struct TextElement : public GuiElement
+    {
+        resourcePool::ResourceHandle<String> *text;
+        TextElementData _data;
+        TextElement() : GuiElement(sizeof(TextElementData)) {}
+
+        TextElementData &data()
+        {
+            return _data;
+        }
+
+        ~TextElement()
+        {
+            text->decRef();
+        }
+
+        void writeAdditionalData(std::vector<uint8_t> &data) override
+        {
+            this->pushString(data, **text);
         }
     };
 
     std::vector<std::shared_ptr<GuiElement>> elements;
     bool elementsModified;
     time_t elementsLastSent;
+
+    void showElement(std::shared_ptr<GuiElement> newElement)
+    {
+        std::vector<std::shared_ptr<GuiElement>> newElements;
+
+        for (auto &element : elements)
+        {
+            if (!element->data().overlaps(newElement->data()))
+            {
+                newElements.push_back(element);
+            }
+        }
+        newElements.push_back(newElement);
+        elements = newElements;
+        elementsModified = true;
+    }
 
     void setup()
     {
@@ -93,18 +142,22 @@ namespace guiModule
                 button->data().y = machine::popUint8();
                 button->data().x = machine::popUint8();
 
-                std::vector<std::shared_ptr<GuiElement>> newElements;
+                showElement(button);
+            });
 
-                for (auto &element : elements)
-                {
-                    if (!element->data().overlaps(button->data()))
-                    {
-                        newElements.push_back(element);
-                    }
-                }
-                newElements.push_back(button);
-                elements = newElements;
-                elementsModified = true;
+        // guiShowText
+        machine::registerFunction(
+            33,
+            []()
+            {
+                auto text = std::make_shared<TextElement>();
+                text->text = machine::popResourceHandle<String>();
+                text->data().rowSpan = machine::popUint8();
+                text->data().colSpan = machine::popUint8();
+                text->data().y = machine::popUint8();
+                text->data().x = machine::popUint8();
+
+                showElement(text);
             });
     }
 

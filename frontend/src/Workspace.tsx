@@ -4,10 +4,10 @@ import toolbox, { buttonCallbacks, toolboxCategoryCallbacks } from './toolbox';
 import compile from './compiler/compile';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { post } from './system/useData';
+import { post, req } from './system/useData';
 import Sensor from './Sensor';
 import { DesktopDownloadIcon, DownloadIcon, PlayIcon, UploadIcon } from '@primer/octicons-react';
-import { useWebsocketState } from './websocket';
+import { sendMessage, useWebsocketEventHandler, useWebsocketState } from './websocket';
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -59,10 +59,33 @@ function WorkspaceUploadButton(props: { uploaded: (serializedWorkspace: string) 
   </div>
 }
 
+let workspaceState: { [key: string]: any } | undefined = undefined;
+let workspaceAlreadyLoadedFromDevice = false;
+
 export default function Workspace() {
   const ref = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
+
+  const loadWorkspaceFromDevice = () => {
+    if (workspaceAlreadyLoadedFromDevice) return;
+
+    req('workspace').success(data => {
+      try {
+        Blockly.serialization.workspaces.load(data, workspaceRef.current!);
+        workspaceAlreadyLoadedFromDevice = true;
+        workspaceState = data;
+        toast("Workspace loaded successfully", { type: 'success' });
+      } catch (e) {
+        console.error("Error while loading workspace", e);
+        toast("Error while loading workspace", { type: 'error' });
+      }
+    }).send();
+  }
+  useWebsocketEventHandler({
+    onOpen: loadWorkspaceFromDevice,
+    onReconnect: loadWorkspaceFromDevice
+  });
 
   const resize = () => {
     let element: HTMLElement | null = areaRef.current!;
@@ -97,17 +120,27 @@ export default function Workspace() {
     Object.entries(toolboxCategoryCallbacks).forEach(([name, callback]) => workspace.registerToolboxCategoryCallback(name, callback));
 
     workspaceRef.current = workspace;
-    const serializedWorkspace = localStorage.getItem("workspace");
-    if (serializedWorkspace != null) {
-      try {
-        Blockly.serialization.workspaces.load(JSON.parse(serializedWorkspace), workspace);
-      } catch (e) {
-        console.error("Error while loading workspace", e);
+
+    if (workspaceState !== undefined) {
+      Blockly.serialization.workspaces.load(workspaceState!, workspace);
+    }
+    else {
+      const serializedWorkspace = localStorage.getItem("workspace");
+      if (serializedWorkspace != null) {
+        try {
+          workspaceState = JSON.parse(serializedWorkspace);
+          Blockly.serialization.workspaces.load(workspaceState!, workspace);
+        } catch (e) {
+          console.error("Error while loading workspace", e);
+        }
       }
     }
     resize();
     window.addEventListener('resize', resize, false);
-    return () => window.removeEventListener('resize', resize, false);
+    return () => {
+      workspaceState = Blockly.serialization.workspaces.save(workspaceRef.current!);
+      window.removeEventListener('resize', resize, false);
+    };
   }, []);
 
   return <>
@@ -119,11 +152,18 @@ export default function Workspace() {
         if (code !== undefined) {
           // save('block.mb', new Blob([code]));
           const progress = toast("Uploading Code...");
-          post('code')
-            .bodyRaw(new Blob([code]))
-            .error(() => { toast.dismiss(progress); toast("Failed to upload the code", { type: 'error' }); })
-            .success(() => { toast.dismiss(progress); toast("Code uploaded successfully", { type: 'success' }); })
+          post('workspace')
+            .bodyRaw(new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!))]))
+            .error(() => { toast.dismiss(progress); toast("Failed to upload the workspace", { type: 'error' }); })
+            .success(() => {
+              post('code')
+                .bodyRaw(new Blob([code]))
+                .error(() => { toast.dismiss(progress); toast("Failed to upload the code", { type: 'error' }); })
+                .success(() => { toast.dismiss(progress); toast("Code and workspace uploaded successfully", { type: 'success' }); })
+                .send()
+            })
             .send();
+
         }
         else
           toast("There was a compilation error", { type: 'error' });

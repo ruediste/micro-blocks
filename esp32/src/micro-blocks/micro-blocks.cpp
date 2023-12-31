@@ -10,7 +10,7 @@ namespace microBlocks
 
     fs::File workspaceFile;
     fs::File codeFile;
-    volatile bool codeChanged = false;
+    volatile bool codeChanged = true;
 
     void setup()
     {
@@ -22,7 +22,7 @@ namespace microBlocks
             });
 
         webServer::server.on(
-            "/api/workspace", HTTP_POST, NULL, NULL,
+            "/api/workspace", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
             [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
             {
                 if (!index)
@@ -64,8 +64,8 @@ namespace microBlocks
                 }
             });
 
-        modules::setup();
         machine::setup();
+        modules::setup();
     }
 
     void loop()

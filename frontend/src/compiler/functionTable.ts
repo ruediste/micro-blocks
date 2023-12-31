@@ -34,6 +34,7 @@ const functionTable = {
     guiShowButton: 30,
     basicCallbackReady: 31,
     pinReadAnalog: 32,
+    guiShowText: 33,
 } as const
 
 const mathUnaryOperationTable = {

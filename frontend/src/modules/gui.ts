@@ -3,6 +3,7 @@ import Blockly from 'blockly';
 import { BlockCode, BlockCodeGeneratorContext, BlockType, NO_THREAD, blockCodeGenerators, generateCodeForBlock, generateCodeForSequence, threadExtractors } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 import { addCategory } from "../toolbox";
+import { generateBlockToString } from "./text";
 
 addCategory({
     'kind': 'category',
@@ -18,6 +19,20 @@ addCategory({
                         'type': 'text',
                         'fields': {
                             'TEXT': 'OK',
+                        },
+                    },
+                },
+            },
+        },
+        {
+            'type': 'gui_text',
+            'kind': 'block',
+            'inputs': {
+                'TEXT': {
+                    'shadow': {
+                        'type': 'text',
+                        'fields': {
+                            'TEXT': 'Hello World',
                         },
                     },
                 },
@@ -59,6 +74,7 @@ Blockly.Blocks['gui_button'] = {
         this.setHelpUrl("");
     }
 };
+
 
 interface ButtonData {
     onClickThread?: number,
@@ -114,4 +130,39 @@ threadExtractors.gui_button = (block, addThread, ctx) => {
     }
 
     ctx.blockData.set(block, data);
+};
+
+
+Blockly.Blocks['gui_text'] = {
+    init: function () {
+        this.appendEndRowInput()
+            .appendField("Show text X:")
+            .appendField(new Blockly.FieldNumber(1), "X")
+            .appendField("Y:")
+            .appendField(new Blockly.FieldNumber(1), "Y")
+            .appendField("ColSpan:")
+            .appendField(new Blockly.FieldNumber(1), "COL_SPAN")
+            .appendField("RowSpan:")
+            .appendField(new Blockly.FieldNumber(1), "ROW_SPAN");
+        this.appendValueInput("TEXT")
+            .appendField("Text:")
+
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour(230);
+        this.setTooltip("");
+        this.setHelpUrl("");
+    }
+};
+
+blockCodeGenerators.gui_text = (block, buffer, ctx) => {
+    return {
+        type: null, code: buffer.startSegment().addCall(functionTable.guiShowText, null,
+            { type: 'uint8', value: block.getFieldValue('X') },
+            { type: 'uint8', value: block.getFieldValue('Y') },
+            { type: 'uint8', value: block.getFieldValue('COL_SPAN') },
+            { type: 'uint8', value: block.getFieldValue('ROW_SPAN') },
+            generateBlockToString(block, "TEXT", buffer, ctx)
+        )
+    };
 };

@@ -31,8 +31,8 @@ export class Request {
     return this;
   }
 
-  _method: string = "GET";
-  method(value: "GET" | "POST" | "DELETE") {
+  _method: 'GET' | 'POST' | 'DELETE' = "GET";
+  method(value: typeof this._method) {
     this._method = value;
     return this;
   }

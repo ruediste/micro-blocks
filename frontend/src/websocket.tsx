@@ -7,19 +7,22 @@ export enum MessageType {
     LOG_SNAPSHOT = 1,
     UI_SNAPSHOT = 2,
     BASIC_TRIGGER_CALLBACK = 3,
+
 }
 
-interface MessageHandler {
-    onMessage: (msg: DataView) => void;
-    onRetry: () => void;
-    onReconnect: () => void;
+type MessageHandler = (msg: DataView) => void;
+
+interface EventHandler {
+    onRetry?: () => void;
+    onReconnect?: () => void;
+    onOpen?: () => void;
 }
 
 const lastMessages: { [key in MessageType]?: DataView } = {};
 const messageHandlers: { [key in MessageType]?: Set<MessageHandler> } = {};
+const eventHandlers = new Set<EventHandler>();
 
 let websocketState: 'connected' | 'not-connected' = 'not-connected';
-const websocketStateChanged: Set<() => void> = new Set();
 
 const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development' ? 'micro-blocks.local' : window.location.host) + "/api/ws")
     .withBuffer(new ArrayQueue())           // buffer messages when disconnected
@@ -37,11 +40,11 @@ const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development
         }
         const type = buffer.getUint8(0) as MessageType;
         lastMessages[type] = buffer;
-        messageHandlers[type]?.forEach(x => x.onMessage(buffer))
+        messageHandlers[type]?.forEach(x => x(buffer))
     })
-    .onRetry(() => { websocketState = 'not-connected'; websocketStateChanged.forEach(x => x()); Object.values(messageHandlers).forEach(x => x?.forEach(y => y.onRetry())) })
-    .onReconnect(() => { websocketState = 'connected'; websocketStateChanged.forEach(x => x()); Object.values(messageHandlers).forEach(x => x?.forEach(y => y.onReconnect())) })
-    .onOpen(() => { websocketState = 'connected'; websocketStateChanged.forEach(x => x()); })
+    .onRetry(() => { websocketState = 'not-connected'; eventHandlers.forEach(y => y.onRetry?.call(null)) })
+    .onReconnect(() => { websocketState = 'connected'; eventHandlers.forEach(y => y.onReconnect?.call(null)) })
+    .onOpen(() => { websocketState = 'connected'; eventHandlers.forEach(y => y.onOpen?.call(null)) })
     .build();
 
 ws.binaryType = "arraybuffer";
@@ -67,6 +70,24 @@ export function sendMessageRaw<T>(type: MessageType, cb: (writer: BinaryWriter) 
 
 type UseLastMessageResult<T> = { state: 'loading', placeholder: React.ReactElement } | { state: 'loaded', value: T };
 
+export function useWebsocketMessageHandler(typeId: MessageType, callback: MessageHandler) {
+    useEffect(() => {
+        if (messageHandlers[typeId] === undefined)
+            messageHandlers[typeId] = new Set() as any;
+        messageHandlers[typeId]!.add(callback);
+        return () => { messageHandlers[typeId]!.delete(callback); }
+    });
+}
+
+export function useWebsocketEventHandler(callback: EventHandler) {
+    useEffect(() => {
+        eventHandlers.add(callback);
+        if (websocketState === 'connected')
+            callback.onOpen?.call(null);
+        return () => { eventHandlers.delete(callback); }
+    });
+}
+
 export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapper<T>): UseLastMessageResult<T> {
     const readLastMessage: (() => UseLastMessageResult<T>) = () => {
         const buffer = lastMessages[typeId];
@@ -78,20 +99,15 @@ export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapp
 
     const [lastMessage, setLastMessage] = useState<UseLastMessageResult<T>>(() => readLastMessage())
 
-    useEffect(() => {
-        if (messageHandlers[typeId] === undefined)
-            messageHandlers[typeId] = new Set() as any;
-        const cbs: MessageHandler = {
-            onMessage: (buffer: DataView) => {
-                const msg = mapper.fromBinary(buffer, 1);
-                console.log("received msg " + JSON.stringify(msg));
-                setLastMessage({ state: 'loaded', value: msg })
-            },
-            onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
-            onReconnect: () => { setLastMessage(readLastMessage) },
-        };
-        messageHandlers[typeId]!.add(cbs);
-        return () => { messageHandlers[typeId]!.delete(cbs); }
+    useWebsocketMessageHandler(typeId, (buffer: DataView) => {
+        const msg = mapper.fromBinary(buffer, 1);
+        console.log("received msg " + JSON.stringify(msg));
+        setLastMessage({ state: 'loaded', value: msg })
+    });
+
+    useWebsocketEventHandler({
+        onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
+        onReconnect: () => { setLastMessage(readLastMessage) },
     });
 
     return lastMessage;
@@ -186,30 +202,23 @@ export function useLastMessageRaw<T>(typeId: MessageType, mapper: ((reader: Bina
 
     const [lastMessage, setLastMessage] = useState<UseLastMessageResult<T>>(() => readLastMessage())
 
-    useEffect(() => {
-        if (messageHandlers[typeId] === undefined)
-            messageHandlers[typeId] = new Set() as any;
-        const cbs: MessageHandler = {
-            onMessage: (buffer: DataView) => {
-                setLastMessage({ state: 'loaded', value: mapper(new BinaryReader(buffer, 1, true)) })
-            },
-            onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
-            onReconnect: () => { setLastMessage(readLastMessage) },
-        };
-        messageHandlers[typeId]!.add(cbs);
-        return () => { messageHandlers[typeId]!.delete(cbs); }
+    useWebsocketMessageHandler(typeId, (buffer: DataView) => {
+        setLastMessage({ state: 'loaded', value: mapper(new BinaryReader(buffer, 1, true)) })
+    }
+    );
+    useWebsocketEventHandler({
+        onRetry: () => { setLastMessage({ state: 'loading', placeholder }) },
+        onReconnect: () => { setLastMessage(readLastMessage) },
     });
 
     return lastMessage;
 }
 
-export function useWebsocketState(): typeof websocketState {
+export function useWebsocketState(callback?: (state: typeof websocketState) => void): typeof websocketState {
     const [state, setState] = useState<typeof websocketState>(websocketState);
-    useEffect(() => {
-        const listener = () => setState(websocketState);
-        websocketStateChanged.add(listener);
-        setState(websocketState);
-        return () => { websocketStateChanged.delete(listener); }
+    useWebsocketEventHandler({
+        onRetry: () => setState(websocketState),
+        onReconnect: () => setState(websocketState),
     });
     return state;
 }

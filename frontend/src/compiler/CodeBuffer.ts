@@ -7,7 +7,6 @@ export interface FunctionInfos {
     }
 }
 
-
 export type CallArgument = { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
     | { type: 'Number', value: number } | BlockCode<'Number'> | (VariableInfo & { type: 'Number' })
     | { type: 'uint16', value: number }
