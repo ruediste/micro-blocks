@@ -49,5 +49,24 @@ namespace variablesModule
                     oldValue->decRef();
                 *((resourcePool::ResourceHandleBase **)machine::variable(offset)) = value;
             });
+
+        // variablesSetVar8
+        machine::registerFunction(
+            36,
+            []()
+            {
+                auto value = machine::popUint8();
+                auto offset = machine::popUint16();
+                *((uint8_t *)machine::variable(offset)) = value;
+            });
+
+        // variablesGetVar8
+        machine::registerFunction(
+            37,
+            []()
+            {
+                auto offset = machine::popUint16();
+                machine::pushUint8(*((uint8_t *)machine::variable(offset)));
+            });
     }
 }

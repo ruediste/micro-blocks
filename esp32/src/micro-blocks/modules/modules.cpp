@@ -11,6 +11,9 @@
 #include "tft.h"
 #include "text.h"
 #include "gui.h"
+#include "colour.h"
+#include "tcs34725module.h"
+
 namespace modules
 {
     void setup()
@@ -25,6 +28,8 @@ namespace modules
         tftModule::setup();
         textModule::setup();
         guiModule::setup();
+        colourModule::setup();
+        tcs34725module::setup();
     }
 
     void loop()
@@ -45,5 +50,6 @@ namespace modules
         pinModule::reset();
         textModule::reset();
         guiModule::reset();
+        tcs34725module::reset();
     }
 }

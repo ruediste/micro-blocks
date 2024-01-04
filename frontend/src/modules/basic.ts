@@ -74,6 +74,7 @@ threadExtractors.basic_forever = (block, addThread) => addThread((buffer, ctx) =
     }
 
     const body = generateCodeForSequence(bodyBlock, buffer, ctx);
+    console.log('body size', body.size())
     return buffer.startSegment()
         .addSegment(body)
         .addJump(-body.size())

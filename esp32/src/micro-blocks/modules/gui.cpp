@@ -22,8 +22,8 @@ namespace guiModule
 
         bool overlaps(GuiElementData &other)
         {
-            return x <= other.x + other.colSpan && x + colSpan > other.x &&
-                   y <= other.y + other.rowSpan && y + rowSpan > other.y;
+            return x < other.x + other.colSpan && x + colSpan > other.x &&
+                   y < other.y + other.rowSpan && y + rowSpan > other.y;
         }
     };
 

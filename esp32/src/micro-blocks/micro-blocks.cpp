@@ -27,11 +27,11 @@ namespace microBlocks
             {
                 if (!index)
                 {
-                    Serial.printf("Workspace start: %u B\n", total);
+                    Serial.printf("Workspace start. Total: %u B\n", total);
                     workspaceFile = main::dataFS.open("/workspace-tmp.json", "w", true);
                 }
 
-                Serial.printf("Write to Workspace: %u B\n", total);
+                Serial.printf("Write to Workspace. Index: %u B\n", index);
                 workspaceFile.write(data, len);
                 if (index + len == total)
                 {

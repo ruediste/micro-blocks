@@ -1,5 +1,5 @@
 import { BlockCode, BlockType, VariableInfo } from "./blockCodeGenerator";
-import { functionByNumber, functionCallers } from "./functionTable";
+import functionTable, { functionByNumber, functionCallers } from "./functionTable";
 
 export interface FunctionInfos {
     [key: number]: {
@@ -8,7 +8,8 @@ export interface FunctionInfos {
 }
 
 export type CallArgument = { type: 'Boolean', value: boolean } | BlockCode<'Boolean'>
-    | { type: 'Number', value: number } | BlockCode<'Number'> | (VariableInfo & { type: 'Number' })
+    | { type: 'Number', value: number | null } | BlockCode<'Number'> | (VariableInfo & { type: 'Number' })
+    | { type: 'Colour', value: [number, number, number] | null } | BlockCode<'Colour'> | (VariableInfo & { type: 'Colour' })
     | { type: 'uint16', value: number }
     | { type: 'uint8', value: number }
     | BlockCode<'String'> | (VariableInfo & { type: 'String' });
@@ -165,8 +166,23 @@ export class CodeBuilder {
                         this.addSegment(x.code)
                     else if ('offset' in x)
                         functionCallers.variablesGetVar32(this, x);
-                    else
+                    else if (x.value !== null)
                         this.addPushFloat(x.value);
+                    break;
+                case 'Colour':
+                    stackDelta -= 12;
+                    if ('code' in x)
+                        this.addSegment(x.code)
+                    else if ('offset' in x) {
+                        this.addCall(functionTable.variablesGetVar32, null, { type: 'uint16', value: x.offset }) // r
+                        this.addCall(functionTable.variablesGetVar32, null, { type: 'uint16', value: x.offset + 4 }) // g
+                        this.addCall(functionTable.variablesGetVar32, null, { type: 'uint16', value: x.offset + 8 }) // b
+                    }
+                    else if (x.value !== null) {
+                        this.addPushFloat(x.value[0]);
+                        this.addPushFloat(x.value[1]);
+                        this.addPushFloat(x.value[2]);
+                    }
                     break;
                 case 'String':
                     stackDelta -= 4;
@@ -188,6 +204,10 @@ export class CodeBuilder {
             case 'Boolean': stackDelta++; break;
             case 'Number': stackDelta += 4; break;
             case 'String': stackDelta += 4; break;
+            case 'Colour': stackDelta += 12; break;
+            case null: break;
+            default:
+                throw new Error("Unknown type " + retType);
         }
         const existingInfo = this.buffer.functionInfos[functionNumber];
         if (existingInfo !== undefined) {

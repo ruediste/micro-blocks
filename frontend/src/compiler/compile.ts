@@ -27,7 +27,8 @@ export function generateCodeForBlock<T extends BlockType>(type: T | undefined, b
             case null: break;
             case 'Boolean': code.addPushUint8(0); break;
             case 'Number': code.addPushFloat(0); break;
-            // case 'String': return loadString('', buffer, ctx) as any;
+            case 'Colour': code.addPushFloat(0); code.addPushFloat(0); code.addPushFloat(0); break;
+            case 'String': return loadString('', buffer, ctx) as any;
             default: throw new Error("Unknown type " + type);
         }
         return { code, type }
@@ -60,25 +61,21 @@ export function generateCodeForSequence(firstBlock: Blockly.Block | null, buffer
     return result;
 }
 
-class MaxStackSizeCalculator {
+class StackSizeCalculator {
     maxStackSize = 0;
-    private stackSizes: { [key: number]: number } = {}
+    stackSizes: { [key: number]: number } = {}
+
+    errors: string[] = [];
+
     constructor(private code: DataView, private functionInfos: FunctionInfos) {
         this.process(0, 0);
     }
 
-    process(pos: number, stackSize: number) {
-        const expectedStackSize = this.stackSizes[pos];
-        if (expectedStackSize !== undefined) {
-            if (expectedStackSize != stackSize)
-                throw new Error("pos " + pos + ": previous stack size was " + expectedStackSize + " but reached position again with stack size " + stackSize)
-            return
-        }
-        else
-            this.stackSizes[pos] = stackSize;
-
+    private process(pos: number, stackSize: number) {
         while (pos < this.code.byteLength) {
-            const prefix = pos + ": ";
+            const instPos = pos;
+
+
             const instruction = decodeInstruction(this.code, pos)
             switch (instruction.opcode) {
                 case "push": stackSize += instruction.count; pos = instruction.nextPc; break;
@@ -89,6 +86,14 @@ class MaxStackSizeCalculator {
             if (stackSize > this.maxStackSize) {
                 this.maxStackSize = stackSize;
             }
+            const expectedStackSize = this.stackSizes[instPos];
+            if (expectedStackSize !== undefined) {
+                if (expectedStackSize != stackSize)
+                    this.errors.push("pos " + instPos + ": previous stack size was " + expectedStackSize + " but reached position again with stack size " + stackSize)
+                return;
+            }
+            else
+                this.stackSizes[instPos] = stackSize;
         }
     }
 }
@@ -108,8 +113,8 @@ function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
 
         switch (opcode >> 4 & 0b11) {
             case 0b00: return argument;
-            case 0b01: return argument << 8 | code.getInt8(pc++);
-            case 0b10: return argument << 16 | code.getInt8(pc++) | code.getInt8(pc++) << 8;
+            case 0b01: return argument << 8 | code.getUint8(pc++);
+            case 0b10: return argument << 16 | code.getUint8(pc++) | code.getUint8(pc++) << 8;
             default: throw new Error("Invalid opcode " + opcode + " at pos " + pc);
         }
     }
@@ -138,26 +143,36 @@ function decodeInstruction(code: DataView, pc: number): { nextPc: number } & (
     }
 }
 
-function disassemble(code: DataView) {
+function toHexDump(code: DataView, start: number, end: number) {
+    let result = '';
+    for (let i = start; i < end; i++) {
+        result += code.getUint8(i).toString(16).padStart(2, '0') + ' ';
+    }
+    return result;
+}
+
+function disassemble(code: DataView, stackSizeCalculator: StackSizeCalculator) {
     const result: string[] = [];
     // output as hex
-    console.log(Array.from(new Uint8Array(code.buffer, 0, code.byteLength)).map(x => x.toString(16).padStart(2, '0')).join(" "));
+    console.log(toHexDump(code, 0, code.byteLength));
     let pos = 0;
     while (pos < code.byteLength) {
-        const prefix = pos + ": ";
-        const instruction = decodeInstruction(code, pos)
+        const instruction = decodeInstruction(code, pos);
+        let instr: string = '';
         switch (instruction.opcode) {
             case "push": {
-                let str = prefix + "push ";
+                instr = "push ";
                 for (let i = 0; i < instruction.count; i++) {
-                    str += " " + code.getUint8(instruction.nextPc - instruction.count + i);
+                    instr += " " + code.getUint8(instruction.nextPc - instruction.count + i);
                 }
-                result.push(str);
             } break;
-            case "jump": result.push(prefix + "jump " + instruction.jumpTarget); break;
-            case "jz": result.push(prefix + "jz " + instruction.jumpTarget); break;
-            case "call": result.push(prefix + "call " + instruction.functionNumber + " (" + functionByNumber[instruction.functionNumber] + ")"); break;
+            case "jump": instr = "jump " + instruction.jumpTarget; break;
+            case "jz": instr = "jz " + instruction.jumpTarget; break;
+            case "call": instr = "call " + instruction.functionNumber + " (" + functionByNumber[instruction.functionNumber] + ")"; break;
+            default: throw new Error("Unknown instruction " + (instruction as any).opcode + " at pos " + pos);
         }
+        result.push(pos + ": " + instr + (stackSizeCalculator.stackSizes[pos] !== undefined ? " (SS:" + stackSizeCalculator.stackSizes[pos] + ")" : "")
+            + " | " + toHexDump(code, pos, instruction.nextPc));
         pos = instruction.nextPc;
     }
 
@@ -172,7 +187,12 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         const variableInfos: VariableInfos = {};
         workspace.getAllVariables().forEach((variable) => {
             variableInfos[variable.name] = new VariableInfo(variable.type as any, globalVariablesSize);
-            globalVariablesSize += 4;
+            if (variable.type === "Boolean")
+                globalVariablesSize++;
+            if (variable.type === "Colour")
+                globalVariablesSize += 12;
+            else
+                globalVariablesSize += 4;
         });
         const constantPool = buffer.startSegment();
 
@@ -229,8 +249,12 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         threads.forEach(thread => {
             const code = new DataView(thread.code!.toBuffer());
             console.log("Thread " + thread.nr)
-            console.log(disassemble(code));
-            thread.maxStack = new MaxStackSizeCalculator(code, buffer.functionInfos).maxStackSize;
+            const stackSizeCalculator = new StackSizeCalculator(code, buffer.functionInfos);
+            console.log(disassemble(code, stackSizeCalculator));
+            if (stackSizeCalculator.errors.length > 0) {
+                throw new Error("Stack size errors:\n" + stackSizeCalculator.errors.join("\n"));
+            }
+            thread.maxStack = stackSizeCalculator.maxStackSize;
             console.log("MaxStack: " + thread.maxStack)
         });
 

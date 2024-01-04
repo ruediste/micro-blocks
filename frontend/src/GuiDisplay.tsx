@@ -107,8 +107,8 @@ export function GuiDisplay() {
     if (gui.state === "loading")
         return gui.placeholder;
 
-    return <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }} id="gui-viewer">GUI Viewer
-        <div style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gridTemplateRows: "repeat(12, 1fr)" }}>
+    return <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }} id="gui-viewer">
+        <div style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gridTemplateRows: "repeat(12, 1fr)", gap: '8px' }}>
             {gui.value.map((element, index) =>
                 <div className="ui-cell" key={index} style={{
                     gridColumn: `${element.x} / span ${element.colSpan}`,

@@ -1,7 +1,7 @@
 import { CodeBuffer, CodeBuilder } from "./CodeBuffer";
 import Blockly from 'blockly';
 
-type VariableType = "Number" | "String";
+type VariableType = "Number" | "String" | "Boolean" | "Colour";
 export class VariableInfo {
     constructor(public type: VariableType, public offset: number) {
     }
@@ -15,6 +15,7 @@ export class VariableInfo {
 export type BlockType =
     'Boolean' // a boolean represented as uint8
     | 'Number' // a number represented as float
+    | 'Colour' // a colour represented as three floats (r,g,b). On the stack, b is topmost
     | 'String' // a string represented as a pointer to a string object
     | null // the block does not push a value on the stack
     ;

@@ -21,6 +21,23 @@ namespace mathModule
         return true;
     }
 
+    float toResistance(float adcFraction)
+    {
+        // calculate resistance of thermistor
+        // r1=thermistor (ADC-GND)
+        // r2=reference (AREF/ADC)
+        // i1=i2; u=r*i; i=u/r; u1/r1=u2/r2; r1/u1=r2/u2; r1=r2*u1/u2
+        // u2=AREF-u1;
+        // u1=AREF*ADC
+        // r1=r2*AREF*ADC/(AREF-AREF*ADC)
+        // r1=r2*ADC/(1-ADC)
+        if (abs(1 - adcFraction) < 1e-6)
+        {
+            return 1e5;
+        }
+        return (adcFraction) / (1 - adcFraction);
+    }
+
     void setup()
     {
         // mathBinary
@@ -197,6 +214,38 @@ namespace mathModule
                 if (number > high)
                     number = high;
                 machine::pushFloat(number);
+            });
+
+        // mathMapLinear
+        machine::registerFunction(
+            34,
+            []()
+            {
+                auto y2 = machine::popFloat();
+                auto x2 = machine::popFloat();
+                auto y1 = machine::popFloat();
+                auto x1 = machine::popFloat();
+                auto value = machine::popFloat();
+
+                auto xDiff = x2 - x1;
+                if (xDiff == 0)
+                {
+                    machine::pushFloat(value);
+                    return;
+                }
+                machine::pushFloat(y1 + (value - x1) * (y2 - y1) / xDiff);
+            });
+
+        // mathMapTemperature
+        machine::registerFunction(
+            35,
+            []()
+            {
+                auto b = machine::popFloat();
+                auto a = machine::popFloat();
+                auto value = machine::popFloat();
+
+                machine::pushFloat(1. / (a + b * log(toResistance(value))) - 273.15);
             });
     }
 

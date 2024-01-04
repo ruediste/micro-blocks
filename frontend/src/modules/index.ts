@@ -6,6 +6,7 @@ import './logic'
 import './controls'
 import './math'
 import './text'
+import './colour'
 import './gui'
 import './variables'
 

@@ -1,4 +1,5 @@
 import { block } from "blockly/core/tooltip";
+import Blockly from 'blockly';
 import { blockCodeGenerators, generateCodeForBlock } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 import { addCategory } from "../toolbox";
@@ -215,6 +216,51 @@ addCategory({
                 },
             },
         },
+        {
+            'type': 'math_map_linear',
+            'kind': 'block',
+            'inputs': {
+                'X1': {
+                    'shadow': {
+                        'type': 'math_number',
+                        'fields': {
+                            'NUM': 0,
+                        },
+                    },
+                },
+
+                'Y1': {
+                    'shadow': {
+                        'type': 'math_number',
+                        'fields': {
+                            'NUM': 0,
+                        },
+                    },
+                },
+
+                'X2': {
+                    'shadow': {
+                        'type': 'math_number',
+                        'fields': {
+                            'NUM': 1,
+                        },
+                    },
+                },
+                'Y2': {
+                    'shadow': {
+                        'type': 'math_number',
+                        'fields': {
+                            'NUM': 1,
+                        },
+                    },
+                },
+
+            },
+        },
+        {
+            'type': 'math_map_temperature',
+            'kind': 'block',
+        }
     ],
 });
 
@@ -318,3 +364,101 @@ blockCodeGenerators.math_constrain = (block, buffer, ctx) => {
     const high = generateCodeForBlock('Number', block.getInputTargetBlock('HIGH'), buffer, ctx);
     return { type: 'Number', code: buffer.startSegment().addCall(functionTable.mathConstrain, 'Number', value, low, high) }
 }
+
+Blockly.Blocks['math_map_linear'] = {
+    init: function () {
+        this.appendValueInput("VALUE")
+            .setCheck("Number")
+            .appendField("Map Linear");
+        this.appendEndRowInput();
+        this.appendValueInput("X1")
+            .setCheck("Number")
+            .appendField("In1");
+        this.appendValueInput("Y1")
+            .setCheck("Number")
+            .appendField("Out1");
+        this.appendEndRowInput();
+        this.appendValueInput("X2")
+            .setCheck("Number")
+            .appendField("In2");
+        this.appendValueInput("Y2")
+            .setCheck("Number")
+            .appendField("Out2");
+        this.setOutput(true, "Number");
+
+        this.setColour(230);
+        this.setTooltip("");
+        this.setHelpUrl("");
+    }
+};
+
+blockCodeGenerators.math_map_linear = (block, buffer, ctx) => {
+    return {
+        type: 'Number', code: buffer.startSegment().addCall(functionTable.mathMapLinear, 'Number',
+            generateCodeForBlock('Number', block.getInputTargetBlock('VALUE'), buffer, ctx),
+            generateCodeForBlock('Number', block.getInputTargetBlock('X1'), buffer, ctx),
+            generateCodeForBlock('Number', block.getInputTargetBlock('Y1'), buffer, ctx),
+            generateCodeForBlock('Number', block.getInputTargetBlock('X2'), buffer, ctx),
+            generateCodeForBlock('Number', block.getInputTargetBlock('Y2'), buffer, ctx),
+        )
+    };
+};
+
+Blockly.Blocks['math_map_temperature'] = {
+    init: function () {
+        this.appendValueInput("VALUE")
+            .setCheck("Number")
+            .appendField("Map Temperature");
+        this.appendEndRowInput();
+        this.appendEndRowInput()
+            .appendField("Value 1")
+            .appendField(new Blockly.FieldNumber(0.4), "X1")
+            .appendField("Temp 1")
+            .appendField(new Blockly.FieldNumber(20), "T1");
+        this.appendEndRowInput()
+            .appendField("Value 2")
+            .appendField(new Blockly.FieldNumber(0.5), "X2")
+            .appendField("Temp 2")
+            .appendField(new Blockly.FieldNumber(30), "T2");
+        this.setOutput(true, "Number");
+        this.setColour(230);
+        this.setTooltip("");
+        this.setHelpUrl("");
+    }
+};
+
+function toResistance(adcFraction: number) {
+    if (Math.abs(1 - adcFraction) < 1e-6) {
+        return 1e5;
+    }
+    return (adcFraction) / (1 - adcFraction);
+}
+
+blockCodeGenerators.math_map_temperature = (block, buffer, ctx) => {
+
+    // steinhart-hart equation
+    const logR1 = Math.log(toResistance(block.getFieldValue('X1')));
+    const logR2 = Math.log(toResistance(block.getFieldValue('X2')));
+    const t1_inv = 1 / (block.getFieldValue('T1') + 273.15);
+    const t2_inv = 1 / (block.getFieldValue('T2') + 273.15);
+    const logDiff = logR2 - logR1;
+
+    let a: number
+    let b: number
+    if (Math.abs(logDiff) < 1e-6) {
+        a = 1;
+        b = 1;
+    }
+    else {
+        b = (t2_inv - t1_inv) / (logR2 - logR1);
+        a = t1_inv - logR1 * b;
+    }
+
+    return {
+        type: 'Number', code: buffer.startSegment().addCall(functionTable.mathMapTemperature, 'Number',
+            generateCodeForBlock('Number', block.getInputTargetBlock('VALUE'), buffer, ctx),
+            { type: 'Number', value: a },
+            { type: 'Number', value: b },
+        )
+    };
+};

@@ -99,8 +99,9 @@ namespace basicModule
         {
             if (millis() - entry->startTime >= entry->delay)
             {
+                auto threadNr = entry->threadNr;
                 delayEntries.erase(entry);
-                machine::runThread(entry->threadNr);
+                machine::runThread(threadNr);
                 break; // break here, as running the thread might modify the delayEntries vector
             }
             else
