@@ -1,7 +1,7 @@
 import Blockly, { FieldVariable } from 'blockly';
 import functionTable, { functionByNumber, functionCallers } from './functionTable';
 import { CodeBuffer, CodeBuilder, FunctionInfos } from './CodeBuffer';
-import { BlockCodeGeneratorContext, BlockData, BlockType, ThreadCodeGenerator, VariableInfo, VariableInfos, blockCodeGenerators, threadExtractors } from './blockCodeGenerator';
+import { BlockCodeGeneratorContext, BlockData, BlockType, ThreadCodeGenerator, VariableInfo, VariableInfos, blockRegistrations } from './blockCodeGenerator';
 import '../modules'
 import { loadString } from '../modules/text';
 export * from './blockCodeGenerator';
@@ -34,9 +34,13 @@ export function generateCodeForBlock<T extends BlockType>(type: T | undefined, b
         return { code, type }
     }
 
-    const generator = blockCodeGenerators[block.type];
+    const registration = blockRegistrations[block.type];
+    if (registration === undefined) {
+        throw new Error("Block " + block.type + " is not registered")
+    }
+    const generator = registration.codeGenerator;
     if (generator === undefined) {
-        throw new Error("No block code generator defined for " + block.type)
+        throw new Error("No code generator for block " + block.type)
     }
 
     const result = generator(block, buffer, type === undefined ? ctx : { ...ctx, expectedType: type });
@@ -196,7 +200,7 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         });
         const constantPool = buffer.startSegment();
 
-        const blockData = new BlockData();
+        const blockData = new BlockData(workspace);
 
         const threads: ThreadInfo[] = [];
         const addThread = (codeGenerator: ThreadCodeGenerator) => {
@@ -205,11 +209,22 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
             return nr;
         };
 
+        // init thread
         addThread((buffer, ctx) => {
             const code = buffer.startSegment();
+
+            // init global variables
             Object.values(variableInfos).forEach(variable => {
                 if (variable.is("String")) {
                     functionCallers.variablesSetResourceHandle(code, variable, loadString('', buffer, ctx));
+                }
+            });
+
+            // run block specific init code
+            workspace.getAllBlocks().forEach(block => {
+                const generator = blockRegistrations[block.type]?.initGenerator;
+                if (generator !== undefined) {
+                    code.addSegment(generator(block, buffer, ctx))
                 }
             });
             code.addCall(functionTable.basicEndThread, null);
@@ -217,8 +232,8 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         });
 
         workspace.getAllBlocks().forEach(block => {
-            const extractor = threadExtractors[block.type];
-            if (extractor != null) {
+            const extractor = blockRegistrations[block.type]?.threadExtractor;
+            if (extractor !== undefined) {
                 extractor(block, addThread, { blockData })
             }
         });
@@ -230,6 +245,7 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         const constantPoolStart = headerSize + threadTableSize;
         let constantPoolOffset = constantPoolStart;
 
+        let nextId = 0;
         const ctx: BlockCodeGeneratorContext = {
             variables: variableInfos,
             expectedType: null,
@@ -242,6 +258,7 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
                 constantPoolOffset += entry.size();
                 return offset;
             },
+            nextId: () => nextId++,
             blockData
         }
         threads.forEach(thread => thread.code = thread.codeGenerator(buffer, ctx));

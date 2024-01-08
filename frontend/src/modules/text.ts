@@ -1,6 +1,6 @@
 import Blockly from 'blockly';
 import { CodeBuffer } from "../compiler/CodeBuffer";
-import { BlockCode, BlockCodeGeneratorContext, BlockType, blockCodeGenerators, generateCodeForBlock } from "../compiler/compile";
+import { BlockCode, BlockCodeGeneratorContext, BlockType, generateCodeForBlock, registerBlock } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 import { addCategory } from "../toolbox";
 
@@ -44,15 +44,19 @@ export function loadString(value: string, buffer: CodeBuffer, ctx: BlockCodeGene
     return { type: 'String', code: buffer.startSegment().addCall(functionTable.textLoad, 'String', { type: 'uint16', value: offset }) };
 }
 
-blockCodeGenerators.text = (block, buffer, ctx) => {
-    const text = block.getFieldValue('TEXT') as string;
-    return loadString(text, buffer, ctx);
-};
+registerBlock('text', {
+    codeGenerator: (block, buffer, ctx) => {
+        const text = block.getFieldValue('TEXT') as string;
+        return loadString(text, buffer, ctx);
+    }
+});
 
 export function generateToString<T extends BlockType>(buffer: CodeBuffer, value: BlockCode<T>): BlockCode<'String'> {
     switch (value.type) {
         case 'Number':
             return { type: 'String', code: buffer.startSegment(code => functionCallers.textNumToString(code, value as any)) }
+        case 'Colour':
+            return { type: 'String', code: buffer.startSegment().addCall(functionTable.textColourToString, 'String', value as any) }
         case 'String':
             return value as any;
         case 'Boolean':
@@ -65,25 +69,29 @@ export function generateBlockToString(block: Blockly.Block, inputName: string, b
     return generateToString(buffer, generateCodeForBlock(undefined, block.getInputTargetBlock(inputName), buffer, ctx));
 }
 
-blockCodeGenerators.text_print = (block, buffer, ctx) => {
-    return {
-        type: null, code: buffer.startSegment().addCall(functionTable.textPrintString, null,
-            generateBlockToString(block, 'TEXT', buffer, ctx))
-    };
-};
-
-blockCodeGenerators.text_join = (block, buffer, ctx) => {
-    if (!block.getInput('ADD0')) {
-        return loadString('', buffer, ctx);
+registerBlock('text_print', {
+    codeGenerator: (block, buffer, ctx) => {
+        return {
+            type: null, code: buffer.startSegment().addCall(functionTable.textPrintString, null,
+                generateBlockToString(block, 'TEXT', buffer, ctx))
+        };
     }
+});
 
-    const add0 = block.getInputTargetBlock('ADD0');
-    let result = generateToString(buffer, add0 == null ? loadString('', buffer, ctx) : generateCodeForBlock(undefined, add0, buffer, ctx));
+registerBlock('text_join', {
+    codeGenerator: (block, buffer, ctx) => {
+        if (!block.getInput('ADD0')) {
+            return loadString('', buffer, ctx);
+        }
 
-    for (let n = 1; block.getInput('ADD' + n); n++) {
-        const add = block.getInputTargetBlock('ADD' + n);
-        const str = generateToString(buffer, add == null ? loadString('', buffer, ctx) : generateCodeForBlock(undefined, add, buffer, ctx));
-        result = { type: 'String', code: buffer.startSegment().addCall(functionTable.textJoinString, 'String', result, str) };
+        const add0 = block.getInputTargetBlock('ADD0');
+        let result = generateToString(buffer, add0 == null ? loadString('', buffer, ctx) : generateCodeForBlock(undefined, add0, buffer, ctx));
+
+        for (let n = 1; block.getInput('ADD' + n); n++) {
+            const add = block.getInputTargetBlock('ADD' + n);
+            const str = generateToString(buffer, add == null ? loadString('', buffer, ctx) : generateCodeForBlock(undefined, add, buffer, ctx));
+            result = { type: 'String', code: buffer.startSegment(code => functionCallers.textJoinString(code, result, str)) };
+        }
+        return result;
     }
-    return result;
-};
+});

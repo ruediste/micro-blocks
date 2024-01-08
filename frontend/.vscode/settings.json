@@ -4,6 +4,7 @@
     "Blockly",
     "callbackkey",
     "categorystyle",
-    "COLOUR"
+    "COLOUR",
+    "referenceable"
   ]
 }

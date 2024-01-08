@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
 import Blockly, { BlocklyOptions } from 'blockly';
 import toolbox, { buttonCallbacks, toolboxCategoryCallbacks } from './toolbox';
-import compile from './compiler/compile';
-import { ToastContainer, toast } from 'react-toastify';
+import compile, { setWorkspaceData, workspaceData } from './compiler/compile';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { post, req } from './system/useData';
 import Sensor from './Sensor';
 import { DesktopDownloadIcon, DownloadIcon, PlayIcon, UploadIcon } from '@primer/octicons-react';
-import { sendMessage, useWebsocketEventHandler, useWebsocketState } from './websocket';
+import { useWebsocketEventHandler, useWebsocketState } from './websocket';
+import { collectBlockReferencesEventHandler } from './modules/blockReference';
 
 var options: BlocklyOptions = {
   toolbox: toolbox,
@@ -72,7 +73,7 @@ export default function Workspace() {
 
     req('workspace').success(data => {
       try {
-        Blockly.serialization.workspaces.load(data, workspaceRef.current!);
+        loadWorkspace(data);
         workspaceAlreadyLoadedFromDevice = true;
         workspaceState = data;
         toast("Workspace loaded successfully", { type: 'success' });
@@ -104,9 +105,26 @@ export default function Workspace() {
     blocklyDiv.style.height = areaRef.current!.offsetHeight + 'px';
     Blockly.svgResize(workspaceRef.current!);
   };
+  const saveWorkspace = () => {
+    return {
+      ...Blockly.serialization.workspaces.save(workspaceRef.current!),
+      version: 0,
+      data: workspaceData
+    }
+  }
+
+  const serializeWorkspace = () => {
+    return JSON.stringify(saveWorkspace())
+  }
+
+
+  const loadWorkspace = (data: any) => {
+    setWorkspaceData(data.data ?? {});
+    Blockly.serialization.workspaces.load(data, workspaceRef.current!)
+  }
 
   const saveWorkspaceToLocalStorage = () => {
-    localStorage.setItem("workspace", JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!)))
+    localStorage.setItem("workspace", serializeWorkspace())
   }
 
   const websocketState = useWebsocketState();
@@ -116,20 +134,21 @@ export default function Workspace() {
 
     const workspace = Blockly.inject(ref.current!, options);
     workspace.addChangeListener(Blockly.Events.disableOrphans);
+    workspace.addChangeListener(collectBlockReferencesEventHandler(workspace));
+
     Object.entries(buttonCallbacks).forEach(([name, callback]) => workspace.registerButtonCallback(name, callback));
     Object.entries(toolboxCategoryCallbacks).forEach(([name, callback]) => workspace.registerToolboxCategoryCallback(name, callback));
 
     workspaceRef.current = workspace;
 
     if (workspaceState !== undefined) {
-      Blockly.serialization.workspaces.load(workspaceState!, workspace);
+      loadWorkspace(workspaceState);
     }
     else {
       const serializedWorkspace = localStorage.getItem("workspace");
       if (serializedWorkspace != null) {
         try {
-          workspaceState = JSON.parse(serializedWorkspace);
-          Blockly.serialization.workspaces.load(workspaceState!, workspace);
+          loadWorkspace(JSON.parse(serializedWorkspace));
         } catch (e) {
           console.error("Error while loading workspace", e);
         }
@@ -138,7 +157,7 @@ export default function Workspace() {
     resize();
     window.addEventListener('resize', resize, false);
     return () => {
-      workspaceState = Blockly.serialization.workspaces.save(workspaceRef.current!);
+      workspaceState = saveWorkspace();
       window.removeEventListener('resize', resize, false);
     };
   }, []);
@@ -153,7 +172,7 @@ export default function Workspace() {
           // save('block.mb', new Blob([code]));
           const progress = toast("Uploading Code...");
           post('workspace')
-            .bodyRaw(new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!))]))
+            .bodyRaw(new Blob([serializeWorkspace()]))
             .error(() => { toast.dismiss(progress); toast("Failed to upload the workspace", { type: 'error' }); })
             .success(() => {
               post('code')
@@ -171,11 +190,11 @@ export default function Workspace() {
       {websocketState == 'connected' || <div className="spinner-border text-primary" role="status" />}
       <Sensor />
       <button type="button" className="btn btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => {
-        save("workspace.mb", new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspaceRef.current!))]));
+        save("workspace.mb", new Blob([serializeWorkspace()]));
       }}>Download <DownloadIcon /></button>
       <WorkspaceUploadButton uploaded={(serializedWorkspace) => {
         try {
-          Blockly.serialization.workspaces.load(JSON.parse(serializedWorkspace), workspaceRef.current!);
+          loadWorkspace(JSON.parse(serializedWorkspace));
           toast("Workspace loaded successfully", { type: 'success' });
         } catch (e) {
           toast("Error while loading workspace", { type: 'error' });

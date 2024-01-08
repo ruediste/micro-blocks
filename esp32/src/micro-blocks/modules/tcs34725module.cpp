@@ -3,6 +3,7 @@
 #include "../machine.h"
 #include <unordered_map>
 #include <stack>
+#include "colour.h"
 
 namespace tcs34725module
 {
@@ -38,8 +39,15 @@ namespace tcs34725module
                 }
 
                 sensors[id] = entry;
-                entry.wire->begin(sda, scl);
-                entry.tcs->begin(TCS34725_ADDRESS, entry.wire);
+                if (!entry.wire->begin(sda, scl))
+                {
+                    Serial.println("Wire begin failed");
+                }
+                if (!entry.tcs->begin(TCS34725_ADDRESS, entry.wire))
+                {
+                    Serial.println("TCS begin failed");
+                }
+                entry.tcs->enable();
             });
 
         // tcs34725GetRGB
@@ -47,11 +55,11 @@ namespace tcs34725module
             42,
             []()
             {
-                auto id = machine::popUint16();
                 auto raw = machine::popUint8();
+                auto id = machine::popUint16();
                 auto tcs = sensors[id].tcs;
                 uint16_t r, g, b, c;
-                tcs->getRawDataOneShot(&r, &g, &b, &c);
+                tcs->getRawData(&r, &g, &b, &c);
                 if (raw == 1)
                 {
                     machine::pushFloat(r);
@@ -67,9 +75,9 @@ namespace tcs34725module
                 else
                 {
                     float cf = c;
-                    machine::pushFloat(r / cf);
-                    machine::pushFloat(g / cf);
-                    machine::pushFloat(b / cf);
+                    machine::pushFloat(colourModule::gamma(r / cf));
+                    machine::pushFloat(colourModule::gamma(g / cf));
+                    machine::pushFloat(colourModule::gamma(b / cf));
                 }
             });
 
@@ -81,7 +89,7 @@ namespace tcs34725module
                 auto id = machine::popUint16();
                 auto tcs = sensors[id].tcs;
                 uint16_t r, g, b, c;
-                tcs->getRawDataOneShot(&r, &g, &b, &c);
+                tcs->getRawData(&r, &g, &b, &c);
                 machine::pushFloat(c);
             });
 

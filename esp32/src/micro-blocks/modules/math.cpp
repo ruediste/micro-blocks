@@ -118,7 +118,6 @@ namespace mathModule
                     Serial.println("Invalid property for mathNumberProperty");
                 }
 
-                Serial.println(String("mathNumberProperty: ") + number + " [" + property + "] = " + result);
                 machine::pushUint8(result);
             });
 

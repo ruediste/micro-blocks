@@ -46,6 +46,9 @@ const functionTable = {
     tcs34725GetRGB: 42,
     tcs34725GetClear: 43,
     tcs34725SetParams: 44,
+    guiShowSignalLight: 45,
+    textColourToString: 46,
+    colourFromHSV: 47,
 } as const
 
 const mathUnaryOperationTable = {
@@ -86,6 +89,7 @@ export const functionCallers = {
     }),
     textNumToString: (buffer: CodeBuilder, value: CallArgument & { type: 'Number' }) => buffer.addCall(functionTable.textNumToString, 'String', value),
     textBoolToString: (buffer: CodeBuilder, value: CallArgument & { type: 'Boolean' }) => buffer.addCall(functionTable.textBoolToString, 'String', value),
+    textJoinString: (buffer: CodeBuilder, a: CallArgument & { type: 'String' }, b: CallArgument & { type: 'String' }) => buffer.addCall(functionTable.textJoinString, 'String', a, b),
 }
 
 export const functionByNumber = Object.entries(functionTable).reduce((acc, [key, value]) => {

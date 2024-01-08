@@ -4,6 +4,7 @@
 #include "machine.h"
 #include "modules/modules.h"
 #include "resourcePool.h"
+#include "ArduinoNvs.h"
 
 namespace microBlocks
 {
@@ -11,6 +12,8 @@ namespace microBlocks
     fs::File workspaceFile;
     fs::File codeFile;
     volatile bool codeChanged = true;
+    time_t startTime = 0;
+    bool rebootLockCleared = false;
 
     void setup()
     {
@@ -66,10 +69,20 @@ namespace microBlocks
 
         machine::setup();
         modules::setup();
+
+        codeChanged = NVS.getInt("rebootLock") == 0;
+        NVS.setInt("rebootLock", 1, true);
+        startTime = millis();
     }
 
     void loop()
     {
+        if (!rebootLockCleared && millis() - startTime > 1000)
+        {
+            NVS.setInt("rebootLock", 0, true);
+            rebootLockCleared = true;
+        }
+
         if (codeChanged)
         {
             codeChanged = false;

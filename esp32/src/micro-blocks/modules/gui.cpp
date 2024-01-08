@@ -11,6 +11,7 @@ namespace guiModule
     {
         BUTTON,
         TEXT,
+        SIGNAL_LIGHT
     };
 
     struct __attribute__((packed)) GuiElementData
@@ -102,6 +103,23 @@ namespace guiModule
         }
     };
 
+    struct __attribute__((packed)) SignalLightElementData : public GuiElementData
+    {
+        SignalLightElementData() : GuiElementData(GuiElementType::SIGNAL_LIGHT) {}
+        float r, g, b;
+    };
+
+    struct SignalLightElement : public GuiElement
+    {
+        SignalLightElementData _data;
+        SignalLightElement() : GuiElement(sizeof(SignalLightElementData)) {}
+
+        SignalLightElementData &data()
+        {
+            return _data;
+        }
+    };
+
     std::vector<std::shared_ptr<GuiElement>> elements;
     bool elementsModified;
     time_t elementsLastSent;
@@ -158,6 +176,23 @@ namespace guiModule
                 text->data().x = machine::popUint8();
 
                 showElement(text);
+            });
+
+        // guiShowSignalLight
+        machine::registerFunction(
+            45,
+            []()
+            {
+                auto signalLight = std::make_shared<SignalLightElement>();
+                signalLight->data().b = machine::popFloat();
+                signalLight->data().g = machine::popFloat();
+                signalLight->data().r = machine::popFloat();
+                signalLight->data().rowSpan = machine::popUint8();
+                signalLight->data().colSpan = machine::popUint8();
+                signalLight->data().y = machine::popUint8();
+                signalLight->data().x = machine::popUint8();
+
+                showElement(signalLight);
             });
     }
 

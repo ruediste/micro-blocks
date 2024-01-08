@@ -1,5 +1,5 @@
-import { VariableInfo, blockCodeGenerators, generateCodeForBlock, generateCodeForSequence } from "../compiler/compile";
-import Blockly, { FieldVariable, FlyoutButton, Msg, Variables, WorkspaceSvg } from 'blockly';
+import { generateCodeForBlock, registerBlock } from "../compiler/compile";
+import Blockly, { FlyoutButton, Msg, Variables, WorkspaceSvg } from 'blockly';
 import { addCategory, toolboxCategoryCallbacks } from "../toolbox";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 
@@ -57,38 +57,41 @@ function flyoutCategoryCustom(workspace: WorkspaceSvg): Element[] {
 
 toolboxCategoryCallbacks['VARIABLE_DYNAMIC_CUSTOM'] = flyoutCategoryCustom;
 
-blockCodeGenerators.variables_set_dynamic = (block, buffer, ctx) => {
-    const variable = ctx.getVariable(block, 'VAR')
-    console.log(variable)
-    const value = generateCodeForBlock(variable.type, block.getInputTargetBlock('VALUE')!, buffer, ctx);
-    if (variable.is("Number"))
-        return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar32(code, variable, value as any)) }
-    else if (variable.is("Boolean"))
-        return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar8(code, variable, value as any)) }
-    else if (variable.is("Colour"))
-        return { type: null, code: buffer.startSegment(code => functionCallers.colourSetVar(code, variable, value as any)) }
-    else if (variable.is("String"))
-        return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetResourceHandle(code, variable, value as any)) }
-    else
-        throw new Error("Unknown variable type " + variable.type)
-};
-
-
-blockCodeGenerators.variables_get_dynamic = (block, buffer, ctx) => {
-    const variable = ctx.getVariable(block, 'VAR')
-    const code = buffer.startSegment();
-    if (variable.is("Number"))
-        functionCallers.variablesGetVar32(code, variable);
-    else if (variable.is("Boolean"))
-        functionCallers.variablesGetVar8(code, variable);
-    else if (variable.is("Colour")) {
-        code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset }); // r
-        code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset + 4 }); // g
-        code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset + 8 }); // b
+registerBlock('variables_set_dynamic', {
+    codeGenerator: (block, buffer, ctx) => {
+        const variable = ctx.getVariable(block, 'VAR')
+        console.log(variable)
+        const value = generateCodeForBlock(variable.type, block.getInputTargetBlock('VALUE')!, buffer, ctx);
+        if (variable.is("Number"))
+            return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar32(code, variable, value as any)) }
+        else if (variable.is("Boolean"))
+            return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetVar8(code, variable, value as any)) }
+        else if (variable.is("Colour"))
+            return { type: null, code: buffer.startSegment(code => functionCallers.colourSetVar(code, variable, value as any)) }
+        else if (variable.is("String"))
+            return { type: null, code: buffer.startSegment(code => functionCallers.variablesSetResourceHandle(code, variable, value as any)) }
+        else
+            throw new Error("Unknown variable type " + variable.type)
     }
-    else if (variable.is("String"))
-        functionCallers.variablesGetResourceHandle(code, variable);
-    else
-        throw new Error("Unknown variable type " + variable.type)
-    return { type: variable.type, code };
-}
+});
+
+registerBlock('variables_get_dynamic', {
+    codeGenerator: (block, buffer, ctx) => {
+        const variable = ctx.getVariable(block, 'VAR')
+        const code = buffer.startSegment();
+        if (variable.is("Number"))
+            functionCallers.variablesGetVar32(code, variable);
+        else if (variable.is("Boolean"))
+            functionCallers.variablesGetVar8(code, variable);
+        else if (variable.is("Colour")) {
+            code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset }); // r
+            code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset + 4 }); // g
+            code.addCall(functionTable.variablesGetVar32, 'Number', { type: 'uint16', value: variable.offset + 8 }); // b
+        }
+        else if (variable.is("String"))
+            functionCallers.variablesGetResourceHandle(code, variable);
+        else
+            throw new Error("Unknown variable type " + variable.type)
+        return { type: variable.type, code };
+    }
+});

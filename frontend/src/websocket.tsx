@@ -85,7 +85,7 @@ export function useWebsocketEventHandler(callback: EventHandler) {
         if (websocketState === 'connected')
             callback.onOpen?.call(null);
         return () => { eventHandlers.delete(callback); }
-    });
+    }, []);
 }
 
 export function useLastMessage<T>(typeId: MessageType, mapper: BinaryMessageMapper<T>): UseLastMessageResult<T> {

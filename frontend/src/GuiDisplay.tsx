@@ -5,6 +5,7 @@ import { useState } from "react";
 enum GuiElementType {
     ButtonElement,
     TextElement,
+    SignalLightElement,
 }
 
 interface GuiElementBase {
@@ -26,8 +27,14 @@ interface TextElement extends GuiElementBase {
     type: GuiElementType.TextElement;
     text: string;
 }
+interface SignalLightElement extends GuiElementBase {
+    type: GuiElementType.SignalLightElement;
+    r: number;
+    g: number;
+    b: number;
+}
 
-type GuiElement = ButtonElement | TextElement;
+type GuiElement = ButtonElement | TextElement | SignalLightElement;
 
 function readGuiElement(buffer: BinaryReader): GuiElementBase {
     const result = {
@@ -61,6 +68,8 @@ function DisplayElement({ element }: { element: GuiElement }) {
             >{element.text}</button>
         case GuiElementType.TextElement:
             return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'lightGray' }} >{element.text}</div>
+        case GuiElementType.SignalLightElement:
+            return <div style={{ display: 'flex', background: `rgb(${element.r * 255},${element.g * 255},${element.b * 255})` }} ></div>
         default:
             return <div >
                 Unknown element type {(element as any).type}
@@ -94,6 +103,17 @@ export function GuiDisplay() {
                         ...base,
                         type: base.type,
                         text: buffer.readStringN(),
+                    }
+                    elements.push(buttonElement);
+                    break;
+                }
+                case GuiElementType.SignalLightElement: {
+                    const buttonElement: SignalLightElement = {
+                        ...base,
+                        type: base.type,
+                        r: buffer.readFloat32(),
+                        g: buffer.readFloat32(),
+                        b: buffer.readFloat32(),
                     }
                     elements.push(buttonElement);
                     break;

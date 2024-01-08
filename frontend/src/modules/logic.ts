@@ -1,4 +1,4 @@
-import { BlockType, blockCodeGenerators, generateCodeForBlock } from "../compiler/compile";
+import { generateCodeForBlock, registerBlock } from "../compiler/compile";
 import functionTable, { functionCallers } from "../compiler/functionTable";
 import { addCategory } from "../toolbox";
 
@@ -43,64 +43,74 @@ addCategory({
     ],
 });
 
-blockCodeGenerators.logic_boolean = (block, buffer) => {
-    return { type: "Boolean", code: buffer.startSegment().addPushUint8(block.getFieldValue('BOOL') === 'TRUE' ? 1 : 0) };
-}
-
-
-blockCodeGenerators.logic_compare = (block, buffer, ctx) => {
-    const op = block.getFieldValue('OP') as 'EQ' | 'NEQ' | 'LT' | 'LTE' | 'GT' | 'GTE';
-    const a = generateCodeForBlock('Number', block.getInputTargetBlock('A'), buffer, ctx);
-    const b = generateCodeForBlock('Number', block.getInputTargetBlock('B'), buffer, ctx);
-    return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicCompare(code, a, b, op)) };
-}
-
-blockCodeGenerators.logic_operation = (block, buffer, ctx) => {
-    const op = block.getFieldValue('OP') as 'AND' | 'OR';
-    const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('A'), buffer, ctx);
-    const b = generateCodeForBlock('Boolean', block.getInputTargetBlock('B'), buffer, ctx);
-    return { type: "Boolean", code: buffer.startSegment().addCall(functionTable.logicOperation, 'Boolean', a, b, { type: 'uint8', value: { AND: 0, OR: 1 }[op] }) };
-}
-
-blockCodeGenerators.logic_negate = (block, buffer, ctx) => {
-    const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('BOOL'), buffer, ctx);
-    return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicNegate(code, a)) };
-}
-
-blockCodeGenerators.logic_ternary = (block, buffer, ctx) => {
-    // determine type
-    const blockThen = block.getInputTargetBlock('THEN');
-    const blockElse = block.getInputTargetBlock('ELSE');
-
-    let codeThen = blockThen == null ? null : generateCodeForBlock(undefined, blockThen, buffer, ctx);
-    let codeElse = blockElse == null ? null : generateCodeForBlock(undefined, blockElse, buffer, ctx);
-
-    if (codeThen != null && codeElse != null && codeThen.type !== codeElse.type) {
-        throw new Error('Type mismatch in ternary: then has type ' + codeThen.type + ' but else has type ' + codeElse.type);
+registerBlock('logic_boolean', {
+    codeGenerator: (block, buffer, ctx) => {
+        return { type: "Boolean", code: buffer.startSegment().addPushUint8(block.getFieldValue('BOOL') === 'TRUE' ? 1 : 0) };
     }
+});
 
-    if (codeThen == null && codeElse == null) {
-        // try to generate code for the output
-        return generateCodeForBlock(ctx.expectedType, null, buffer, ctx);
+
+registerBlock('logic_compare', {
+    codeGenerator: (block, buffer, ctx) => {
+        const op = block.getFieldValue('OP') as 'EQ' | 'NEQ' | 'LT' | 'LTE' | 'GT' | 'GTE';
+        const a = generateCodeForBlock('Number', block.getInputTargetBlock('A'), buffer, ctx);
+        const b = generateCodeForBlock('Number', block.getInputTargetBlock('B'), buffer, ctx);
+        return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicCompare(code, a, b, op)) };
     }
+});
 
-    const type = codeThen?.type ?? codeElse!.type;
+registerBlock('logic_operation', {
+    codeGenerator: (block, buffer, ctx) => {
+        const op = block.getFieldValue('OP') as 'AND' | 'OR';
+        const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('A'), buffer, ctx);
+        const b = generateCodeForBlock('Boolean', block.getInputTargetBlock('B'), buffer, ctx);
+        return { type: "Boolean", code: buffer.startSegment().addCall(functionTable.logicOperation, 'Boolean', a, b, { type: 'uint8', value: { AND: 0, OR: 1 }[op] }) };
+    }
+});
 
-    codeThen = codeThen ?? generateCodeForBlock(type, null, buffer, ctx);
-    codeElse = codeElse ?? generateCodeForBlock(type, null, buffer, ctx);
+registerBlock('logic_negate', {
+    codeGenerator: (block, buffer, ctx) => {
+        const a = generateCodeForBlock('Boolean', block.getInputTargetBlock('BOOL'), buffer, ctx);
+        return { type: "Boolean", code: buffer.startSegment(code => functionCallers.logicNegate(code, a)) };
+    }
+});
+
+registerBlock('logic_ternary', {
+    codeGenerator: (block, buffer, ctx) => {
+        // determine type
+        const blockThen = block.getInputTargetBlock('THEN');
+        const blockElse = block.getInputTargetBlock('ELSE');
+
+        let codeThen = blockThen == null ? null : generateCodeForBlock(undefined, blockThen, buffer, ctx);
+        let codeElse = blockElse == null ? null : generateCodeForBlock(undefined, blockElse, buffer, ctx);
+
+        if (codeThen != null && codeElse != null && codeThen.type !== codeElse.type) {
+            throw new Error('Type mismatch in ternary: then has type ' + codeThen.type + ' but else has type ' + codeElse.type);
+        }
+
+        if (codeThen == null && codeElse == null) {
+            // try to generate code for the output
+            return generateCodeForBlock(ctx.expectedType, null, buffer, ctx);
+        }
+
+        const type = codeThen?.type ?? codeElse!.type;
+
+        codeThen = codeThen ?? generateCodeForBlock(type, null, buffer, ctx);
+        codeElse = codeElse ?? generateCodeForBlock(type, null, buffer, ctx);
 
 
-    const condition = generateCodeForBlock('Boolean', block.getInputTargetBlock('IF'), buffer, ctx).code;
+        const condition = generateCodeForBlock('Boolean', block.getInputTargetBlock('IF'), buffer, ctx).code;
 
-    const thenJump = buffer.startSegment()
-        .addSegment(codeThen.code)
-        .addJump(codeElse.code.size());
+        const thenJump = buffer.startSegment()
+            .addSegment(codeThen.code)
+            .addJump(codeElse.code.size());
 
-    return {
-        type: type, code: buffer.startSegment()
-            .addSegment(condition)
-            .addJz(thenJump.size())
-            .addSegment(thenJump)
-            .addSegment(codeElse.code)
-    };
-}
+        return {
+            type: type, code: buffer.startSegment()
+                .addSegment(condition)
+                .addJz(thenJump.size())
+                .addSegment(thenJump)
+                .addSegment(codeElse.code)
+        };
+    }
+});

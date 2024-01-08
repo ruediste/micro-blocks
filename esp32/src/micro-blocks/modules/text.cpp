@@ -101,6 +101,18 @@ namespace textModule
                 str1->decRef();
                 str2->decRef();
             });
+
+        // textColourToString
+        machine::registerFunction(
+            46,
+            []()
+            {
+                auto b = machine::popFloat();
+                auto g = machine::popFloat();
+                auto r = machine::popFloat();
+                auto str = resourceHandle(new String(String(r) + "," + g + "," + b));
+                machine::pushResourceHandle(str);
+            });
     }
 
     void loop()
