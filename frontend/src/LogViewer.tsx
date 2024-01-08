@@ -1,4 +1,4 @@
-import { MessageType, useLastMessage, useLastMessageRaw, useWebsocketState } from "./websocket"
+import { MessageType, useLastMessageRaw } from "./websocket"
 
 export function LogViewer() {
     const log = useLastMessageRaw(MessageType.LOG_SNAPSHOT, buffer => {

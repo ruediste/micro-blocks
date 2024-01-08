@@ -32,6 +32,10 @@ export function collectBlockReferencesEventHandler(workspace: WorkspaceSvg) {
     }
 }
 
+export function anyBlockOfType(referencedBlockType: string) {
+    return referencedBlockType in data() && Object.keys(data()[referencedBlockType]).length > 0;
+}
+
 export function blockReferenceDropdown(referencedBlockType: string) {
     return new Blockly.FieldDropdown(function (this: Blockly.FieldDropdown) {
         data()[referencedBlockType] ??= {};
@@ -51,7 +55,6 @@ export function onchangeUpdateBlockReference(block: Blockly.BlockSvg, event: Blo
         field.forceRerender();
     }
     if (event instanceof Blockly.Events.BlockDelete && event.blockId === sensorBlockId) {
-        console.log(event);
         block.dispose(true);
     }
 }

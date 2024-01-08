@@ -1,40 +1,47 @@
 import { generateCodeForSequence, registerBlock } from "../compiler/compile";
-import Blockly, { BlockSvg, FieldDropdown } from 'blockly';
-import { addCategory } from "../toolbox";
+import Blockly, { BlockSvg, FieldDropdown, WorkspaceSvg } from 'blockly';
+import { addCategory, toolboxCategoryCallbacks } from "../toolbox";
 import functionTable from "../compiler/functionTable";
-import { blockReferenceDropdown, onchangeUpdateBlockReference } from "./blockReference";
+import { anyBlockOfType, blockReferenceDropdown, onchangeUpdateBlockReference } from "./blockReference";
+import { FlyoutDefinition, ToolboxInfo } from "blockly/core/utils/toolbox";
+
+toolboxCategoryCallbacks.sensor = (workspace) => {
+    const tcs34725Available = anyBlockOfType('sensor_tcs34725_config');
+    return [{
+        'type': 'sensor_on_gravity_values',
+        'kind': 'block',
+    },
+    {
+        'type': 'sensor_get_gravity_value',
+        'kind': 'block',
+    },
+    {
+        'type': 'sensor_tcs34725_config',
+        'kind': 'block',
+    },
+    {
+        'type': 'sensor_tcs34725_get_RGB',
+        'kind': 'block',
+        enabled: tcs34725Available,
+    },
+    {
+        'type': 'sensor_tcs34725_get_clear',
+        'kind': 'block',
+        enabled: tcs34725Available,
+    },
+    {
+        'type': 'sensor_tcs34725_set_params',
+        'kind': 'block',
+        enabled: tcs34725Available,
+    }];
+};
 
 
 addCategory({
     'kind': 'category',
     'name': 'Sensor',
     'colour': "#5b67a5",
-    contents: [
-        {
-            'type': 'sensor_on_gravity_values',
-            'kind': 'block',
-        },
-        {
-            'type': 'sensor_get_gravity_value',
-            'kind': 'block',
-        },
-        {
-            'type': 'sensor_tcs34725_config',
-            'kind': 'block',
-        },
-        {
-            'type': 'sensor_tcs34725_get_RGB',
-            'kind': 'block',
-        },
-        {
-            'type': 'sensor_tcs34725_get_clear',
-            'kind': 'block',
-        },
-        {
-            'type': 'sensor_tcs34725_set_params',
-            'kind': 'block',
-        },
-    ]
+    'custom': 'sensor'
 });
 
 Blockly.Blocks['sensor_on_gravity_values'] = {

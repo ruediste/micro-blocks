@@ -214,7 +214,7 @@ export function useLastMessageRaw<T>(typeId: MessageType, mapper: ((reader: Bina
     return lastMessage;
 }
 
-export function useWebsocketState(callback?: (state: typeof websocketState) => void): typeof websocketState {
+export function useWebsocketState(): typeof websocketState {
     const [state, setState] = useState<typeof websocketState>(websocketState);
     useWebsocketEventHandler({
         onRetry: () => setState(websocketState),

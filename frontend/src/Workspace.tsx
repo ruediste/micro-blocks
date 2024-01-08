@@ -117,8 +117,21 @@ export default function Workspace() {
     return JSON.stringify(saveWorkspace())
   }
 
+  const createNewWorkspace = () => {
+    if (ref.current !== null)
+      ref.current.innerHTML = '';
 
+    const workspace = Blockly.inject(ref.current!, options);
+    workspace.addChangeListener(Blockly.Events.disableOrphans);
+    workspace.addChangeListener(collectBlockReferencesEventHandler(workspace));
+
+    Object.entries(buttonCallbacks).forEach(([name, callback]) => workspace.registerButtonCallback(name, callback));
+    Object.entries(toolboxCategoryCallbacks).forEach(([name, callback]) => workspace.registerToolboxCategoryCallback(name, callback));
+
+    workspaceRef.current = workspace;
+  }
   const loadWorkspace = (data: any) => {
+    createNewWorkspace();
     setWorkspaceData(data.data ?? {});
     Blockly.serialization.workspaces.load(data, workspaceRef.current!)
   }
@@ -130,18 +143,10 @@ export default function Workspace() {
   const websocketState = useWebsocketState();
 
   useEffect(() => {
-    ref.current!.innerHTML = '';
 
-    const workspace = Blockly.inject(ref.current!, options);
-    workspace.addChangeListener(Blockly.Events.disableOrphans);
-    workspace.addChangeListener(collectBlockReferencesEventHandler(workspace));
-
-    Object.entries(buttonCallbacks).forEach(([name, callback]) => workspace.registerButtonCallback(name, callback));
-    Object.entries(toolboxCategoryCallbacks).forEach(([name, callback]) => workspace.registerToolboxCategoryCallback(name, callback));
-
-    workspaceRef.current = workspace;
 
     if (workspaceState !== undefined) {
+      loadWorkspace(workspaceState);
       loadWorkspace(workspaceState);
     }
     else {
@@ -153,6 +158,8 @@ export default function Workspace() {
           console.error("Error while loading workspace", e);
         }
       }
+      else
+        createNewWorkspace();
     }
     resize();
     window.addEventListener('resize', resize, false);
