@@ -49,6 +49,9 @@ const functionTable = {
     guiShowSignalLight: 45,
     textColourToString: 46,
     colourFromHSV: 47,
+    rgbLedSetup: 48,
+    rgbLedSetColour: 49,
+    rgbShow: 50,
 } as const
 
 const mathUnaryOperationTable = {

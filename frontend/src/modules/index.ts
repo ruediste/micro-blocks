@@ -1,6 +1,7 @@
 import { addDefaultCategories } from '../toolbox';
 import './basic'
-import './pin';
+import './pin'
+import './rgbLed'
 import './sensor'
 import './logic'
 import './controls'

@@ -13,6 +13,7 @@
 #include "gui.h"
 #include "colour.h"
 #include "tcs34725module.h"
+#include "rgbLed.h"
 
 namespace modules
 {
@@ -30,6 +31,7 @@ namespace modules
         guiModule::setup();
         colourModule::setup();
         tcs34725module::setup();
+        rgbLedModule::setup();
     }
 
     void loop()
@@ -39,6 +41,7 @@ namespace modules
         tftModule::loop();
         textModule::loop();
         guiModule::loop();
+        rgbLedModule::loop();
 
         // the basic module should come last, to run yielded thread with lowest priority
         basicModule::loop();
@@ -51,5 +54,6 @@ namespace modules
         textModule::reset();
         guiModule::reset();
         tcs34725module::reset();
+        rgbLedModule::reset();
     }
 }

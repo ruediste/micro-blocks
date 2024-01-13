@@ -3,7 +3,6 @@ import Blockly, { BlockSvg, FieldDropdown, WorkspaceSvg } from 'blockly';
 import { addCategory, toolboxCategoryCallbacks } from "../toolbox";
 import functionTable from "../compiler/functionTable";
 import { anyBlockOfType, blockReferenceDropdown, onchangeUpdateBlockReference } from "./blockReference";
-import { FlyoutDefinition, ToolboxInfo } from "blockly/core/utils/toolbox";
 
 toolboxCategoryCallbacks.sensor = (workspace) => {
     const tcs34725Available = anyBlockOfType('sensor_tcs34725_config');
