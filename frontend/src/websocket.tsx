@@ -24,7 +24,7 @@ const eventHandlers = new Set<EventHandler>();
 
 let websocketState: 'connected' | 'not-connected' = 'not-connected';
 
-const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development' ? 'micro-blocks.local' : window.location.host) + "/api/ws")
+const ws = new WebsocketBuilder("ws://" + (process.env.NODE_ENV === 'development' ? 'micro-blocks2.local' : window.location.host) + "/api/ws")
     .withBuffer(new ArrayQueue())           // buffer messages when disconnected
     .withBackoff(new ConstantBackoff(1000)) // retry every second
     .onMessage(async (_, message) => {

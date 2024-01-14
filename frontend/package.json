@@ -52,5 +52,5 @@
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   },
-  "proxy": "http://micro-blocks.local/"
+  "proxy": "http://micro-blocks2.local/"
 }

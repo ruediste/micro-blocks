@@ -1,3 +1,4 @@
+import { FieldColourHsvSliders } from "../blockly/field_colour_hsv_sliders";
 import { registerBlock } from "../compiler/blockCodeGenerator";
 import { generateCodeForBlock } from "../compiler/compile";
 import functionTable from "../compiler/functionTable";
@@ -11,6 +12,13 @@ addCategory({
     'contents': [
         {
             'type': 'colour_picker',
+            'kind': 'block',
+            'fields': {
+                'COLOUR': '#ff0000',
+            },
+        },
+        {
+            'type': 'colour_picker_hsv',
             'kind': 'block',
             'fields': {
                 'COLOUR': '#ff0000',
@@ -120,6 +128,32 @@ addCategory({
 registerBlock('colour_picker', {
     codeGenerator: (block, buffer, ctx) => {
         const colourStr = block.getFieldValue('COLOUR') as string;
+        const r = parseInt(colourStr.substring(1, 3), 16);
+        const g = parseInt(colourStr.substring(3, 5), 16);
+        const b = parseInt(colourStr.substring(5, 7), 16);
+        return {
+            type: 'Colour', code: buffer.startSegment().addPushFloat(r / 255).addPushFloat(g / 255).addPushFloat(b / 255)
+        };
+    }
+});
+
+registerBlock('colour_picker_hsv', {
+    block: {
+        init: function (this: Blockly.BlockSvg) {
+            this.appendEndRowInput()
+                .appendField("HSV")
+                .appendField(new FieldColourHsvSliders(), "COLOUR")
+
+            this.setOutput(true, 'Colour');
+            this.setColour(20);
+            this.setTooltip("");
+            this.setHelpUrl("");
+        }
+    },
+
+    codeGenerator: (block, buffer, ctx) => {
+        const colourStr = block.getFieldValue('COLOUR') as string;
+        console.log(colourStr);
         const r = parseInt(colourStr.substring(1, 3), 16);
         const g = parseInt(colourStr.substring(3, 5), 16);
         const b = parseInt(colourStr.substring(5, 7), 16);

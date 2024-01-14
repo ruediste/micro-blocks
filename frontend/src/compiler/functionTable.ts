@@ -52,6 +52,7 @@ const functionTable = {
     rgbLedSetup: 48,
     rgbLedSetColour: 49,
     rgbShow: 50,
+    rgbSetBitmap: 51,
 } as const
 
 const mathUnaryOperationTable = {
