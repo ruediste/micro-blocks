@@ -85,7 +85,7 @@ export function setWorkspaceData(data: WorkspaceData) {
  */
 export interface BlockRegistration {
     block?: StrictBlockRegistration
-    threadExtractor?: (block: Blockly.Block, addThread: (generator: ThreadCodeGenerator) => number, ctx: { blockData: BlockData }) => void
+    threadExtractor?: (block: Blockly.Block, addThread: (generator: ThreadCodeGenerator, pushFront?: boolean) => number, ctx: { blockData: BlockData }) => void
     initGenerator?: (block: Blockly.Block, buffer: CodeBuffer, ctx: BlockCodeGeneratorContext) => CodeBuilder
     codeGenerator?: BlockCodeGenerator
     referenceableBy?: string

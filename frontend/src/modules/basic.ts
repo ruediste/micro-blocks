@@ -51,7 +51,7 @@ registerBlock('basic_on_start', {
     threadExtractor: (block, addThread) => addThread((buffer, ctx) => {
         const body = generateCodeForSequence(block.getInputTargetBlock('BODY')!, buffer, ctx);
         return buffer.startSegment().addSegment(body).addCall(functionTable.basicEndThread, null);
-    })
+    }, true)
 });
 
 Blockly.Blocks['basic_forever'] = {

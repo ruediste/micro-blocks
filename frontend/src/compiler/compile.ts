@@ -203,9 +203,12 @@ export default function compile(workspace: Blockly.Workspace): ArrayBuffer | und
         const blockData = new BlockData(workspace);
 
         const threads: ThreadInfo[] = [];
-        const addThread = (codeGenerator: ThreadCodeGenerator) => {
+        const addThread = (codeGenerator: ThreadCodeGenerator, pushFront?: boolean) => {
             const nr = threads.length;
-            threads.push({ codeGenerator });
+            if (pushFront === true)
+                threads.unshift({ codeGenerator });
+            else
+                threads.push({ codeGenerator });
             return nr;
         };
 
